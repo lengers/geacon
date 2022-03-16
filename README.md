@@ -2,6 +2,10 @@
 
 **Using Go to implement CobaltStrike's Beacon**
 
+Forked from [the original geacon project](https://github.com/darkr4y/geacon) by the great **[@darkr4y](https://github.com/darkr4y)**.
+
+Greatly improved by the work of [@DidierStevens](https://github.com/DidierStevens) and his tool [cs-parse-http-traffic.py](https://github.com/DidierStevens/Beta/blob/master/cs-parse-http-traffic.py).
+
 ----
 
 *This project is for learning protocol analysis and reverse engineering only, if someone's rights have been violated, please contact me to remove the project, and the last DO NOT USE IT ILLEGALLY*

