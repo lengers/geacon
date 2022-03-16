@@ -5,3 +5,6 @@ out/
 *.iml
 .DS_Store
 __debug_bin
+go.mod
+go.sum
+.cobaltstrike.beacon_keys
