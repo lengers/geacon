@@ -7,4 +7,5 @@ out/
 __debug_bin
 go.mod
 go.sum
+main
 .cobaltstrike.beacon_keys
