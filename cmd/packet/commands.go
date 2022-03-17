@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 const (
@@ -254,6 +255,38 @@ func MoveFile(oldLocation, newLocation []byte) {
 	if err != nil {
 		fmt.Printf("File Move error: %s\n", err)
 	}
+}
+
+func ListProcesses() []byte {
+	processList, err := process.Processes()
+	if err != nil {
+		fmt.Printf("File Move error: %s\n", err)
+		return nil
+	}
+
+	var sb strings.Builder
+
+	for _, processEntity := range processList {
+		parent, err := processEntity.Ppid()
+		if err != nil {
+			fmt.Printf("Error getting process parent: %s\n", err)
+		} 
+		name, err := processEntity.Name()
+		if err != nil {
+			fmt.Printf("Error getting process name: %s\n", err)
+		} 
+		username, err := processEntity.Username()
+		if err != nil {
+			fmt.Printf("Error getting process user: %s\n", err)
+		} 
+		// for whatever reason, Cobalt Strike expects the output in the format
+		// PPID <TAB> PID <TAB> Name <TAB> Arch <TAB> Session <TAB> User
+		//
+		// As arch and session are not really a thing in UNIX, we just leave these fields blank
+		sb.WriteString(fmt.Sprintf("%s\t%d\t%d\t\t%s\n", name, parent, processEntity.Pid, username))
+	}
+
+	return []byte(sb.String())
 }
 
 func File_Browse(b []byte) []byte {

