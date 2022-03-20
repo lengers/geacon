@@ -375,9 +375,11 @@ func ConnectTcpBeacon(addr []byte, port uint16) (int, []byte) {
 	fmt.Printf("Beacon ID  %d\n", beaconId)
 
 	// The rest of the payload are 128 bytes, the exact length allowed for RSA decrypt on the team server. Coincidence? I think not!
-	encryptedMetaData := trimmedMessage[4:]
+	encryptedMetaInfo := trimmedMessage[4:]
 
-	return beaconId, encryptedMetaData
+	AddTcpBeaconLink(beaconId, conn, reader, encryptedMetaInfo)
+
+	return beaconId, encryptedMetaInfo
 
 }
 
