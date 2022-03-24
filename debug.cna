@@ -1,0 +1,4 @@
+foreach $name (listeners_local()) {
+	println("$name is: " . listener_describe($name));
+    println(listener_info($name))
+}
