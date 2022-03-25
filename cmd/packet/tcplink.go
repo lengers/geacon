@@ -92,9 +92,10 @@ func CheckTcpBeacons() []byte {
 		} else {
 			fmt.Printf("Beacon %d is only checking in, nothing to see here\n", beacon.Id)
 		}
-		// beaconOutputFinal := MakePacket(BEACON_RSP_PIPES_PING, append(WriteInt(beacon.Id), beaconOutputBuf...))
-		PushChainResult(beacon.Id, EncryptPacket(beaconOutputBuf))
-		// resultBuf = append(resultBuf, beaconOutputFinal...)
+		beaconOutputFinal := MakePacket(BEACON_RSP_BEACON_CHECKIN, append(WriteInt(beacon.Id), beaconOutputBuf...))
+		resultBuf = append(resultBuf, beaconOutputFinal...)
+		// PushChainResult(beacon.Id, EncryptPacket(beaconOutputBuf))
+
 	}
 	return resultBuf
 }

