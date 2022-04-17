@@ -12,8 +12,9 @@ perl -0777 -i -pe 's/-----BEGIN PRIVATE KEY-----.+?-----END PRIVATE KEY-----/$EN
 perl -0777 -i -pe 's/-----BEGIN PUBLIC KEY-----.+?-----END PUBLIC KEY-----/$ENV{"PUBLIC_KEY"}/gs' cmd/config/config.go
 
 # build the program
+outfile=$(git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/')
 docker run -ti --rm -v $PWD/.build-deps:/go/pkg -v $PWD:/usr/src/app golang:buster bash -c \
-    'export GOOS="linux" && \
-    export GOARCH="amd64" && \
+    "export GOOS='linux' && \
+    export GOARCH='amd64' && \
     cd /usr/src/app && \
-    go build cmd/main.go'
+    go build -race -o ${outfile} cmd/main.go"

