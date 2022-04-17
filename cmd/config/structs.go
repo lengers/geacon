@@ -15,3 +15,11 @@ type TcpBeacon struct {
 // 	Id int
 // 	BaseEncFileContent string
 // }
+
+type SocksSession struct {
+	Id int
+	Address string
+	Port int
+	Conn net.Conn
+	OutBuf []byte
+}

