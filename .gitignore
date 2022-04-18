@@ -8,3 +8,4 @@ __debug_bin
 main
 .cobaltstrike.beacon_keys
 .build-deps
+*.dll
