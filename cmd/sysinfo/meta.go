@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"fmt"
 )
 
 func GeaconID() int {
@@ -37,17 +38,35 @@ func GetPID() int {
 	return os.Getpid()
 }
 
+// func GetMetaDataFlag() int {
+// 	flagInt := 0
+// 	if IsHighPriv() {
+// 		flagInt += 8
+// 	} else if IsOSX64() {
+// 		flagInt += 4
+// 	} else if IsProcessX64() {
+// 		flagInt += 2
+// 	} else {
+// 		flagInt += 1
+// 	}
+// 	return flagInt
+// }
+
 func GetMetaDataFlag() int {
 	flagInt := 0
 	if IsHighPriv() {
 		flagInt += 8
-	} else if IsOSX64() {
+	} 
+	if IsOSX64() {
 		flagInt += 4
-	} else if IsProcessX64() {
+	} 
+	if IsProcessX64() {
 		flagInt += 2
-	} else {
+	}
+	if flagInt == 0 {
 		flagInt += 1
 	}
+	fmt.Printf("MetaDataFlag is %d\n", flagInt)
 	return flagInt
 }
 

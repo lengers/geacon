@@ -36,9 +36,11 @@ func IsOSX64() bool {
 
 func IsProcessX64() bool {
 	if runtime.GOARCH == "amd64" {
-		return false
+		fmt.Printf("PROCESS IS 64 BIT!\n")
+		return true
 	}
-	return true
+	fmt.Printf("PROCESS IS 32 BIT!\n")
+	return false
 }
 
 func GetCodePageANSI() []byte {

