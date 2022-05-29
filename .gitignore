@@ -11,3 +11,4 @@ main
 *.dll
 *.bin
 *.log
+*.upx
