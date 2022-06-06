@@ -29,8 +29,6 @@ Please note: The branch `main` contains the http geacon, the branch `tcp` contai
 Get the Geacon's command execution results on Linux.
 ![login](https://github.com/darkr4y/geacon/raw/master/screenshots/sc.png)
 
-
-
 ## Protocol analysis
 
 To be continued, I will update as soon as I have time ...
